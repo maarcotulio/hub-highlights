@@ -1,0 +1,51 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  books     Book[]
+  createdAt DateTime @default(now())
+}
+
+model Book {
+  id         String      @id @default(uuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id])
+  title      String
+  author     String?
+  source     Source
+  highlights Highlight[]
+  createdAt  DateTime    @default(now())
+
+  @@unique([userId, title, author, source])
+}
+
+model Highlight {
+  id            String    @id @default(uuid())
+  bookId        String
+  book          Book      @relation(fields: [bookId], references: [id])
+  text          String
+  note          String?
+  location      String?
+  chapter       String?
+  highlightedAt DateTime?
+  dedupeHash    String
+  createdAt     DateTime  @default(now())
+
+  @@unique([bookId, dedupeHash])
+}
+
+enum Source {
+  KINDLE
+  KOREADER
+}
