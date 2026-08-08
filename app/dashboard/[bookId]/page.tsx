@@ -2,8 +2,11 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/supabase/auth";
 import { prisma } from "@/lib/db";
 import { SourceBadge } from "@/components/ui/SourceBadge";
+import { BookStatusBadge } from "@/components/ui/BookStatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { BackLink } from "@/components/ui/BackLink";
+import { StatRow } from "@/components/ui/StatRow";
+import { formatReadTime, formatDate } from "@/lib/readingStats";
 import { HighlightSearch } from "./_components/HighlightSearch";
 import { ExportBookButton } from "./_components/ExportBookButton";
 
@@ -25,7 +28,7 @@ export default async function BookDetailPage({
   // book both correctly 404 without leaking which case it was.
   const book = await prisma.book.findFirst({
     where: { id: bookId, userId: dbUser.id },
-    include: { highlights: { orderBy: { highlightedAt: "asc" } } },
+    include: { highlights: { orderBy: { highlightedAt: "asc" } }, stats: true },
   });
   if (!book) notFound();
 
@@ -41,6 +44,7 @@ export default async function BookDetailPage({
           </div>
           <div className="flex items-center gap-3">
             <span className="text-[15px] text-text-2">{book.author}</span>
+            <BookStatusBadge bookId={book.id} status={book.status} />
             <SourceBadge source={book.source} />
           </div>
         </div>
@@ -53,6 +57,28 @@ export default async function BookDetailPage({
       <div className="text-sm font-mono text-text-2 mb-7">
         {book.highlights.length} highlights
       </div>
+
+      {book.stats && (
+        <div className="mb-7">
+          <StatRow
+            cells={[
+              { label: "TIME READ", value: formatReadTime(book.stats.totalReadTimeSec) },
+              {
+                label: "PAGES READ",
+                value: `${book.stats.totalReadPages} / ${book.stats.totalPages}`,
+                progressPercent:
+                  book.stats.totalPages > 0
+                    ? Math.round((book.stats.totalReadPages / book.stats.totalPages) * 100)
+                    : 0,
+              },
+              {
+                label: "LAST OPENED",
+                value: book.stats.lastOpenAt ? formatDate(book.stats.lastOpenAt) : "—",
+              },
+            ]}
+          />
+        </div>
+      )}
 
       {book.highlights.length === 0 ? (
         <EmptyState

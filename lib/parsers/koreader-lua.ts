@@ -158,6 +158,13 @@ export function parseKoreaderMetadata(luaContent: string): RawHighlight[] {
     typeof docProps.title === "string" && docProps.title ? docProps.title : "Untitled";
   const author =
     typeof docProps.authors === "string" && docProps.authors ? docProps.authors : null;
+  // KOReader's own cross-file identifier: the same partial-content hash is
+  // stored here and in statistics.sqlite3's `book.md5`, letting us match a
+  // book's highlights to its reading stats without relying on title/author.
+  const md5 =
+    typeof table.partial_md5_checksum === "string" && table.partial_md5_checksum
+      ? table.partial_md5_checksum
+      : null;
 
   return Object.values(annotations as Record<string, unknown>)
     .filter((entry): entry is Record<string, unknown> => {
@@ -184,6 +191,7 @@ export function parseKoreaderMetadata(luaContent: string): RawHighlight[] {
         bookTitle,
         author,
         source: "KOREADER" as const,
+        md5,
         text,
         note,
         location,

@@ -146,12 +146,12 @@ export function Dropzone({
   }
 
   if (state.phase === "success") {
-    const { imported, skipped, fileName } = state.result;
-    return (
-      <Toast
-        message={`${fileName} — ${imported} imported, ${skipped} skipped`}
-      />
-    );
+    const { result } = state;
+    const message =
+      result.kind === "highlights"
+        ? `${result.fileName} — ${result.imported} imported, ${result.skipped} skipped`
+        : `${result.fileName} — reading stats updated for ${result.booksUpdated} book${result.booksUpdated === 1 ? "" : "s"}`;
+    return <Toast message={message} />;
   }
 
   return (

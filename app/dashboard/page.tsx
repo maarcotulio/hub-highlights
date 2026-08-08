@@ -1,9 +1,19 @@
+import Link from "next/link";
 import { requireUser } from "@/lib/supabase/auth";
 import { prisma } from "@/lib/db";
 import { BookRow } from "@/components/ui/BookRow";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Dropzone } from "@/components/ui/Dropzone";
 import { ExportAllButton } from "./_components/ExportAllButton";
+import { ReadingOverview } from "./_components/ReadingOverview";
+import {
+  aggregateDailyMinutes,
+  buildHeatmapCells,
+  computeStreak,
+  formatReadTime,
+  formatRelativeDate,
+  formatDate,
+} from "@/lib/readingStats";
 
 export default async function DashboardPage() {
   const user = await requireUser();
@@ -20,6 +30,58 @@ export default async function DashboardPage() {
   });
 
   const totalHighlights = books.reduce((sum, b) => sum + b._count.highlights, 0);
+
+  const bookStats = await prisma.bookStats.findMany({
+    where: { book: { userId: dbUser.id } },
+    include: {
+      book: { select: { title: true } },
+      pageStats: { select: { startTime: true, durationSec: true } },
+    },
+  });
+
+  const readingOverview =
+    bookStats.length === 0
+      ? null
+      : (() => {
+          const totalTimeSec = bookStats.reduce((sum, b) => sum + b.totalReadTimeSec, 0);
+          const pagesRead = bookStats.reduce((sum, b) => sum + b.totalReadPages, 0);
+          const pagesTotal = bookStats.reduce((sum, b) => sum + b.totalPages, 0);
+
+          const dailyMinutes = aggregateDailyMinutes(bookStats.flatMap((b) => b.pageStats));
+          const streak = computeStreak(dailyMinutes);
+          const heatmapCells = buildHeatmapCells(dailyMinutes);
+
+          const reading = bookStats
+            .filter((b) => b.totalReadPages < b.totalPages)
+            .sort((a, b) => (b.lastOpenAt?.getTime() ?? 0) - (a.lastOpenAt?.getTime() ?? 0))
+            .slice(0, 5)
+            .map((b) => ({
+              title: b.book.title,
+              pagesLabel: `${b.totalReadPages} / ${b.totalPages}`,
+              pct: b.totalPages > 0 ? Math.round((b.totalReadPages / b.totalPages) * 100) : 0,
+              opened: b.lastOpenAt ? formatRelativeDate(b.lastOpenAt) : "unknown",
+            }));
+
+          const finished = bookStats
+            .filter((b) => b.totalReadPages >= b.totalPages)
+            .sort((a, b) => (b.lastOpenAt?.getTime() ?? 0) - (a.lastOpenAt?.getTime() ?? 0))
+            .slice(0, 5)
+            .map((b) => ({
+              title: b.book.title,
+              finishedLabel: b.lastOpenAt ? formatDate(b.lastOpenAt) : "unknown",
+            }));
+
+          return {
+            totalTimeLabel: formatReadTime(totalTimeSec),
+            bookCount: bookStats.length,
+            streak,
+            pagesRead,
+            pagesTotal,
+            heatmapCells,
+            currentlyReading: reading,
+            finished,
+          };
+        })();
 
   if (books.length === 0) {
     return (
@@ -46,8 +108,18 @@ export default async function DashboardPage() {
             {books.length} books · {totalHighlights} highlights
           </div>
         </div>
-        <ExportAllButton fileCount={books.length} />
+        <div className="flex items-center gap-3">
+          <Link
+            href="/dashboard/settings"
+            className="text-sm font-medium px-5 py-2.5 rounded-lg text-text-2 hover:text-text transition-opacity"
+          >
+            ⚙ Settings
+          </Link>
+          <ExportAllButton fileCount={books.length} />
+        </div>
       </div>
+
+      {readingOverview && <ReadingOverview {...readingOverview} />}
 
       <div className="mb-8">
         <Dropzone />
@@ -62,6 +134,7 @@ export default async function DashboardPage() {
               title: book.title,
               author: book.author,
               source: book.source,
+              status: book.status,
               highlightCount: book._count.highlights,
             }}
           />

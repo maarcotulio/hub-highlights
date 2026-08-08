@@ -13,6 +13,7 @@ datasource db {
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
+  apiToken  String?  @unique
   books     Book[]
   createdAt DateTime @default(now())
 }
@@ -24,7 +25,10 @@ model Book {
   title      String
   author     String?
   source     Source
+  md5        String?
+  status     BookStatus  @default(NOT_STARTED)
   highlights Highlight[]
+  stats      BookStats?
   createdAt  DateTime    @default(now())
 
   @@unique([userId, title, author, source])
@@ -38,6 +42,7 @@ model Highlight {
   note          String?
   location      String?
   chapter       String?
+  tags          String[]  @default([])
   highlightedAt DateTime?
   dedupeHash    String
   createdAt     DateTime  @default(now())
@@ -45,6 +50,37 @@ model Highlight {
   @@unique([bookId, dedupeHash])
 }
 
+model BookStats {
+  id               String     @id @default(uuid())
+  bookId           String     @unique
+  book             Book       @relation(fields: [bookId], references: [id])
+  md5              String
+  totalPages       Int
+  totalReadTimeSec Int
+  totalReadPages   Int
+  lastOpenAt       DateTime?
+  pageStats        PageStat[]
+  updatedAt        DateTime   @updatedAt
+}
+
+model PageStat {
+  id          String    @id @default(uuid())
+  bookStatsId String
+  bookStats   BookStats @relation(fields: [bookStatsId], references: [id])
+  page        Int
+  startTime   DateTime
+  durationSec Int
+  totalPages  Int
+
+  @@index([bookStatsId, startTime])
+}
+
 enum Source {
   KOREADER
+}
+
+enum BookStatus {
+  NOT_STARTED
+  READING
+  FINISHED
 }

@@ -7,9 +7,10 @@ export function HighlightSearch({ highlights }: { highlights: HighlightItem[] })
   const [query, setQuery] = useState("");
 
   const filtered = query
-    ? highlights.filter((h) =>
-        h.text.toLowerCase().includes(query.toLowerCase())
-      )
+    ? highlights.filter((h) => {
+        const q = query.toLowerCase();
+        return h.text.toLowerCase().includes(q) || h.tags.some((t) => t.toLowerCase().includes(q));
+      })
     : highlights;
 
   return (

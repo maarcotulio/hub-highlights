@@ -59,4 +59,29 @@ describe("parseKoreaderMetadata", () => {
       expect(h.dedupeHash).toMatch(/^[a-f0-9]{40}$/);
     }
   });
+
+  it("extracts partial_md5_checksum as md5 when present and non-empty", () => {
+    const lua = `return {
+      ["partial_md5_checksum"] = "abc123def456",
+      ["annotations"] = {
+        [1] = { ["color"] = "yellow", ["text"] = "some highlight" },
+      },
+    }`;
+    const highlights = parseKoreaderMetadata(lua);
+    expect(highlights).toHaveLength(1);
+    expect(highlights[0].md5).toBe("abc123def456");
+  });
+
+  it("treats a missing or empty partial_md5_checksum as null", () => {
+    // The real fixture has partial_md5_checksum = "" (present but empty).
+    const withEmptyChecksum = parseKoreaderMetadata(metadataFixture);
+    for (const h of withEmptyChecksum) {
+      expect(h.md5).toBeNull();
+    }
+    // The standalone annotations.lua format doesn't have the field at all.
+    const withoutChecksum = parseKoreaderMetadata(annotationsFixture);
+    for (const h of withoutChecksum) {
+      expect(h.md5).toBeNull();
+    }
+  });
 });

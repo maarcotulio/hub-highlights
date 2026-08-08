@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { Source } from "@/lib/parsers/normalize";
+import type { BookStatus } from "@/lib/bookStatus";
 import { SourceBadge } from "./SourceBadge";
+import { BookStatusBadge } from "./BookStatusBadge";
 
 type BookRowProps = {
   book: {
@@ -8,6 +10,7 @@ type BookRowProps = {
     title: string;
     author: string | null;
     source: Source;
+    status: BookStatus;
     highlightCount: number;
   };
 };
@@ -23,6 +26,7 @@ export function BookRow({ book }: BookRowProps) {
         <div className="text-base font-medium truncate">{book.title}</div>
         <div className="text-sm text-text-2 truncate">{book.author}</div>
       </div>
+      <BookStatusBadge bookId={book.id} status={book.status} />
       <SourceBadge source={book.source} />
       <span className="font-mono text-sm text-text-2 w-28 text-right shrink-0">
         {book.highlightCount} highlights

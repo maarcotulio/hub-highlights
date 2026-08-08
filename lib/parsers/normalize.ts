@@ -6,6 +6,7 @@ export interface RawHighlight {
   bookTitle: string;
   author: string | null;
   source: Source;
+  md5: string | null;
   text: string;
   note: string | null;
   location: string | null;

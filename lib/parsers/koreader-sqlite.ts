@@ -1,3 +1,4 @@
+import { join } from "path";
 import initSqlJs, { type QueryExecResult, type SqlValue } from "sql.js";
 
 type Db = InstanceType<Awaited<ReturnType<typeof initSqlJs>>["Database"]>;
@@ -42,7 +43,13 @@ export interface ParsedKoreaderStatistics {
 export async function parseKoreaderStatistics(
   fileBuffer: Uint8Array
 ): Promise<ParsedKoreaderStatistics> {
-  const SQL = await initSqlJs();
+  // sql.js's own default `locateFile` resolves relative to a `__dirname` that
+  // Next.js's bundler rewrites to a virtual path (breaks with an ENOENT for
+  // sql-wasm.wasm) — pointing it at the real on-disk node_modules path
+  // sidesteps that entirely. Works the same under plain Node/Vitest too.
+  const SQL = await initSqlJs({
+    locateFile: (file) => join(process.cwd(), "node_modules", "sql.js", "dist", file),
+  });
   const db = new SQL.Database(fileBuffer);
 
   try {
