@@ -7,6 +7,7 @@ export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
+    seed: "tsx prisma/seed.ts",
   },
   // Migrate needs a direct (non-pooled) connection — pgbouncer's transaction
   // mode doesn't support the advisory locks / prepared statements it uses.

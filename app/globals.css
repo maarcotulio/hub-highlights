@@ -1,26 +1,91 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #fafaf7;
+  --surface: #fffffe;
+  --surface-2: #f0efe8;
+  --text: #2a2724;
+  --text-2: #736e66;
+  --border: #dedad0;
+  --accent: #b5502f;
+  --accent-text: #fffffe;
+  --kindle: #3d6fa8;
+  --koreader: #4a7a4f;
+  --danger: #b23b3b;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+
+  --radius-card: 12px;
+  --radius-pill: 999px;
+  --radius-control: 8px;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-text: var(--text);
+  --color-text-2: var(--text-2);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-text: var(--accent-text);
+  --color-kindle: var(--kindle);
+  --color-koreader: var(--koreader);
+  --color-danger: var(--danger);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --text-display: 56px;
+  --text-h1: 32px;
+  --text-h2: 22px;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme="light"]) {
+    --bg: #211f1c;
+    --surface: #2a2723;
+    --surface-2: #332f2a;
+    --text: #f1efe9;
+    --text-2: #a7a196;
+    --border: #464137;
+    --accent: #e0885f;
+    --accent-text: #211f1c;
+    --kindle: #83aede;
+    --koreader: #8dbb8f;
+    --danger: #e0888a;
   }
 }
 
+/* Explicit choice (via ThemeToggle) always wins over OS preference. */
+:root[data-theme="dark"] {
+  --bg: #211f1c;
+  --surface: #2a2723;
+  --surface-2: #332f2a;
+  --text: #f1efe9;
+  --text-2: #a7a196;
+  --border: #464137;
+  --accent: #e0885f;
+  --accent-text: #211f1c;
+  --kindle: #83aede;
+  --koreader: #8dbb8f;
+  --danger: #e0888a;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-text);
 }
