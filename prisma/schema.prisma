@@ -11,11 +11,12 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  apiToken  String?  @unique
-  books     Book[]
-  createdAt DateTime @default(now())
+  id         String    @id @default(uuid())
+  email      String    @unique
+  apiToken   String?   @unique
+  lastSyncAt DateTime?
+  books      Book[]
+  createdAt  DateTime  @default(now())
 }
 
 model Book {
@@ -26,6 +27,7 @@ model Book {
   author     String?
   source     Source
   md5        String?
+  coverUrl   String?
   status     BookStatus  @default(NOT_STARTED)
   highlights Highlight[]
   stats      BookStats?

@@ -38,14 +38,24 @@ export default async function BookDetailPage({
         ← All books
       </BackLink>
       <div className="flex justify-between items-start gap-6 mb-2">
-        <div>
-          <div className="text-[32px] font-semibold tracking-tight mb-1.5">
-            {book.title}
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-[15px] text-text-2">{book.author}</span>
-            <BookStatusBadge bookId={book.id} status={book.status} />
-            <SourceBadge source={book.source} />
+        <div className="flex items-start gap-4">
+          {book.coverUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={book.coverUrl}
+              alt=""
+              className="w-16 h-[86px] rounded shrink-0 object-cover border border-border"
+            />
+          )}
+          <div>
+            <div className="text-[32px] font-semibold tracking-tight mb-1.5">
+              {book.title}
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-[15px] text-text-2">{book.author}</span>
+              <BookStatusBadge bookId={book.id} status={book.status} />
+              <SourceBadge source={book.source} />
+            </div>
           </div>
         </div>
         <ExportBookButton

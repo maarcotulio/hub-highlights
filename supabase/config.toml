@@ -124,6 +124,13 @@ file_size_limit = "50MiB"
 # allowed_mime_types = ["image/png", "image/jpeg"]
 # objects_path = "./images"
 
+# Book cover thumbnails uploaded by the KOReader plugin (plugins/hub.koplugin)
+# via POST /api/webhook/cover. Public so <img src> can load them directly.
+[storage.buckets.covers]
+public = true
+file_size_limit = "2MiB"
+allowed_mime_types = ["image/png", "image/jpeg"]
+
 # Allow connections via S3 compatible clients
 [storage.s3_protocol]
 enabled = true

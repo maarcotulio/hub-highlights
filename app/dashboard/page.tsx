@@ -136,6 +136,7 @@ export default async function DashboardPage() {
               source: book.source,
               status: book.status,
               highlightCount: book._count.highlights,
+              coverUrl: book.coverUrl,
             }}
           />
         ))}

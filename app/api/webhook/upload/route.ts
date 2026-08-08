@@ -1,20 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { prisma } from "@/lib/db";
 import { ingestUpload } from "@/lib/ingest";
+import { requireApiUser } from "@/lib/webhook-auth";
 
-// Ingestion endpoint for unattended clients (no browser session) — e.g. a
-// future KOReader-side plugin pushing files automatically. Auth is a bearer
-// token instead of the Supabase cookie session `/api/upload` uses. The file
-// name travels via `?filename=` and the body is the raw file bytes (no
-// multipart), since that's what a Lua HTTP client can build directly.
+// Ingestion endpoint for unattended clients (no browser session) — the
+// KOReader-side plugin (plugins/hub.koplugin) pushing files automatically.
+// Auth is a bearer token instead of the Supabase cookie session `/api/upload`
+// uses. The file name travels via `?filename=` and the body is the raw file
+// bytes (no multipart), since that's what a Lua HTTP client can build directly.
 export async function POST(request: NextRequest) {
-  const authHeader = request.headers.get("authorization") ?? "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice("Bearer ".length) : null;
-  if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const user = await prisma.user.findUnique({ where: { apiToken: token } });
+  const user = await requireApiUser(request);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
