@@ -23,7 +23,7 @@ export default async function DashboardPage() {
 
   if (books.length === 0) {
     return (
-      <div className="max-w-4xl mx-auto px-6 py-12">
+      <div className="w-full max-w-4xl mx-auto px-6 py-12">
         <EmptyState
           title="Your shelf is empty"
           description={"Import a KOReader metadata.<ext>.lua file to bring your highlights into one place."}
@@ -38,7 +38,7 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-12">
+    <div className="w-full max-w-4xl mx-auto px-6 py-12">
       <div className="flex justify-between items-end mb-7 gap-4 flex-wrap">
         <div>
           <div className="text-[26px] font-semibold mb-1">Your books</div>

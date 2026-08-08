@@ -30,7 +30,7 @@ export default async function BookDetailPage({
   if (!book) notFound();
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-12">
+    <div className="w-full max-w-4xl mx-auto px-6 py-12">
       <BackLink href="/dashboard" className="text-sm text-text-2 inline-block mb-5">
         ← All books
       </BackLink>
@@ -45,6 +45,7 @@ export default async function BookDetailPage({
           </div>
         </div>
         <ExportBookButton
+          bookId={book.id}
           bookTitle={book.title}
           disabled={book.highlights.length === 0}
         />
