@@ -1,18 +1,11 @@
 import { notFound } from "next/navigation";
-import { getBookById } from "@/lib/mock/books";
+import { requireUser } from "@/lib/supabase/auth";
+import { prisma } from "@/lib/db";
 import { SourceBadge } from "@/components/ui/SourceBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { BackLink } from "@/components/ui/BackLink";
 import { HighlightSearch } from "./_components/HighlightSearch";
 import { ExportBookButton } from "./_components/ExportBookButton";
-
-// TEMPORARY: same shim as app/dashboard/page.tsx — mock data is synchronous,
-// so this artificial delay is what makes loading.tsx's skeleton demoable.
-// Remove once real data fetching lands.
-async function getBook(bookId: string) {
-  await new Promise((r) => setTimeout(r, 400));
-  return getBookById(bookId);
-}
 
 export default async function BookDetailPage({
   params,
@@ -20,7 +13,20 @@ export default async function BookDetailPage({
   params: Promise<{ bookId: string }>;
 }) {
   const { bookId } = await params;
-  const book = await getBook(bookId);
+  const user = await requireUser();
+  const dbUser = await prisma.user.upsert({
+    where: { email: user.email! },
+    update: {},
+    create: { email: user.email! },
+  });
+
+  // The userId filter here is the authorization check (does this user own
+  // this book), not just "is someone logged in" — a mismatch and a missing
+  // book both correctly 404 without leaking which case it was.
+  const book = await prisma.book.findFirst({
+    where: { id: bookId, userId: dbUser.id },
+    include: { highlights: { orderBy: { highlightedAt: "asc" } } },
+  });
   if (!book) notFound();
 
   return (

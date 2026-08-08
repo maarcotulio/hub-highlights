@@ -4,7 +4,7 @@ Project context for Claude Code. Read this before working on any part of the rep
 
 ## What the project is
 
-Highlights Hub: a web app that imports highlights/annotations from **KOReader** and **Kindle**, unifies them in a dashboard, and exports them as **Markdown in Obsidian format**. Target audience: readers who use Obsidian as a second brain and want their highlights there without manual work.
+Highlights Hub: a web app that imports highlights/annotations from **KOReader**, unifies them in a dashboard, and exports them as **Markdown in Obsidian format**. Target audience: readers who use Obsidian as a second brain and want their highlights there without manual work.
 
 ## Stack
 
@@ -48,10 +48,9 @@ Docker (Desktop w/ WSL integration, or Docker Engine in WSL) already running.
   /login
 /lib
   /parsers
-    kindle.ts           # parseKindleClippings
-    koreader-lua.ts     # parseKoreaderMetadata
+    koreader-lua.ts     # parseKoreaderMetadata (handles both metadata.<ext>.lua and standalone <book>.<ext>.annotations.lua)
     koreader-sqlite.ts  # parseKoreaderStatistics (optional v1)
-    normalize.ts         # unifies the 3 formats into a common RawHighlight
+    normalize.ts         # unifies the 3 accepted file types into a common RawHighlight
   /export
     toObsidianMarkdown.ts
   db.ts                  # Prisma client
@@ -98,7 +97,6 @@ model Highlight {
 }
 
 enum Source {
-  KINDLE
   KOREADER
 }
 ```
@@ -107,22 +105,21 @@ enum Source {
 
 ## Important parsing notes
 
-**Kindle (`My Clippings.txt`)**
-- Entries separated by a `==========` line
-- Line 1: `Title (Author)`
-- Line 2: metadata — can be a highlight, note, or bookmark; may contain page/location and date
-- Line 3: empty
-- Line 4: highlight text
-- The same highlight can appear duplicated if the user edited the note on the device — dedupe by hash handles this
-- Encoding: usually `UTF-8` with BOM — strip the BOM before parsing
+Exactly 3 file types are accepted, all from KOReader — there is no Kindle/`.txt` support anywhere in this project.
 
-**KOReader (`metadata.lua`)**
-- Lives at `<book-name>.sdr/metadata.lua`, next to the book file
+**`metadata.<ext>.lua` — recommended**
+- Lives at `<book-name>.sdr/metadata.<ext>.lua` (e.g. `metadata.epub.lua`, `metadata.pdf.lua` — the original book file's extension is embedded in the sidecar filename), next to the book file
+- KOReader generates this automatically whenever a book is opened — the most reliable source
 - It's a real Lua table, not JSON — needs a Lua parser (e.g. `luaparse` + safe evaluation of the subset used, never a direct `eval`)
 - Highlights live in `annotations` (recent KOReader versions) with `text`, `note`, `chapter`, `datetime`, `pageno`/`pos0`/`pos1`
+- Also has `doc_props` (`title`, `authors`) — this is what makes it the recommended file: title/author are always available
 - Older KOReader versions use a separate `highlight` + `bookmarks` structure — worth checking the version before assuming the format
 
-**KOReader (`statistics.sqlite3`)**
+**`<book-name>.<ext>.annotations.lua` — standalone annotations**
+- Same `annotations` table structure as above, handled by the same parser (`parseKoreaderMetadata`)
+- No `doc_props` — book title falls back to `"Untitled"`, author to `null`, so prefer `metadata.<ext>.lua` when both are available
+
+**`statistics.sqlite3`**
 - Lives at `koreader/settings/statistics.sqlite3`
 - Doesn't have highlight text, only reading progress/time per session — useful for a future stats dashboard phase, not essential for the MVP
 

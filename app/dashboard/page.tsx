@@ -1,28 +1,37 @@
-import { mockBooks, totalHighlightCount } from "@/lib/mock/books";
+import { requireUser } from "@/lib/supabase/auth";
+import { prisma } from "@/lib/db";
 import { BookRow } from "@/components/ui/BookRow";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Dropzone } from "@/components/ui/Dropzone";
-import { Button } from "@/components/ui/Button";
 import { ExportAllButton } from "./_components/ExportAllButton";
 
-// TEMPORARY: mock data is read synchronously, so Next has nothing to suspend
-// on and app/dashboard/loading.tsx never triggers. This artificial delay lets
-// the loading skeleton be demoed now; remove once real data fetching lands.
-async function getBooks() {
-  await new Promise((r) => setTimeout(r, 400));
-  return mockBooks;
-}
-
 export default async function DashboardPage() {
-  const books = await getBooks();
+  const user = await requireUser();
+  const dbUser = await prisma.user.upsert({
+    where: { email: user.email! },
+    update: {},
+    create: { email: user.email! },
+  });
+
+  const books = await prisma.book.findMany({
+    where: { userId: dbUser.id },
+    include: { _count: { select: { highlights: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const totalHighlights = books.reduce((sum, b) => sum + b._count.highlights, 0);
 
   if (books.length === 0) {
     return (
       <div className="max-w-4xl mx-auto px-6 py-12">
         <EmptyState
           title="Your shelf is empty"
-          description={'Import a Kindle "My Clippings.txt" or a KOReader metadata.lua file to bring your highlights into one place.'}
-          action={<Button className="mt-1">Upload your first file</Button>}
+          description={"Import a KOReader metadata.<ext>.lua file to bring your highlights into one place."}
+          action={
+            <div className="mt-1 w-full max-w-md">
+              <Dropzone />
+            </div>
+          }
         />
       </div>
     );
@@ -34,7 +43,7 @@ export default async function DashboardPage() {
         <div>
           <div className="text-[26px] font-semibold mb-1">Your books</div>
           <div className="text-sm text-text-2">
-            {books.length} books · {totalHighlightCount(books)} highlights
+            {books.length} books · {totalHighlights} highlights
           </div>
         </div>
         <ExportAllButton fileCount={books.length} />
@@ -46,7 +55,16 @@ export default async function DashboardPage() {
 
       <div>
         {books.map((book) => (
-          <BookRow key={book.id} book={book} />
+          <BookRow
+            key={book.id}
+            book={{
+              id: book.id,
+              title: book.title,
+              author: book.author,
+              source: book.source,
+              highlightCount: book._count.highlights,
+            }}
+          />
         ))}
       </div>
     </div>

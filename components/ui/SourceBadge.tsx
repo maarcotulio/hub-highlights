@@ -1,8 +1,7 @@
-import type { Source } from "@/lib/mock/types";
+import type { Source } from "@/lib/parsers/normalize";
 
 export function SourceBadge({ source }: { source: Source }) {
-  const colorVar = source === "KINDLE" ? "--color-kindle" : "--color-koreader";
-  const color = `var(${colorVar})`;
+  const color = "var(--color-koreader)";
 
   return (
     <span

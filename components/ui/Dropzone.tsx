@@ -1,9 +1,27 @@
 "use client";
 
 import { useRef, useState, useEffect, type DragEvent } from "react";
-import { simulateUpload } from "@/lib/mock/upload-simulation";
-import type { UploadResult } from "@/lib/mock/types";
+import { useRouter } from "next/navigation";
+import type { UploadResult } from "@/lib/upload";
 import { Button } from "./Button";
+import { Toast } from "./Toast";
+
+const SUCCESS_TOAST_MS = 2500;
+
+async function uploadFile(file: File): Promise<UploadResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const response = await fetch("/api/upload", {
+      method: "POST",
+      body: formData,
+    });
+    return (await response.json()) as UploadResult;
+  } catch {
+    return { status: "error", reason: "corrupt", fileName: file.name };
+  }
+}
 
 type DropzoneState =
   | { phase: "idle" }
@@ -19,6 +37,7 @@ export function Dropzone({
 }) {
   const [state, setState] = useState<DropzoneState>({ phase: "idle" });
   const inputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
 
   useEffect(() => {
     if (state.phase !== "uploading") return;
@@ -35,12 +54,15 @@ export function Dropzone({
   async function handleFile(file: File) {
     if (state.phase === "uploading") return;
     setState({ phase: "uploading", fileName: file.name, progress: 10 });
-    const result = await simulateUpload(file);
-    setState(
-      result.status === "success"
-        ? { phase: "success", result }
-        : { phase: "error", result }
-    );
+    const result = await uploadFile(file);
+
+    if (result.status === "success") {
+      setState({ phase: "success", result });
+      router.refresh();
+      setTimeout(() => setState({ phase: "idle" }), SUCCESS_TOAST_MS);
+    } else {
+      setState({ phase: "error", result });
+    }
     onImported?.(result);
   }
 
@@ -76,7 +98,7 @@ export function Dropzone({
                 : "Drop a file to import highlights"}
             </div>
             <div className="text-xs text-text-2 font-mono">
-              .txt · .lua · .sqlite3
+              .lua (recommended) · .sqlite3
             </div>
           </div>
         </div>
@@ -86,7 +108,7 @@ export function Dropzone({
         <input
           ref={inputRef}
           type="file"
-          accept=".txt,.lua,.sqlite3"
+          accept=".lua,.sqlite3"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
@@ -124,31 +146,11 @@ export function Dropzone({
   }
 
   if (state.phase === "success") {
+    const { imported, skipped, fileName } = state.result;
     return (
-      <div className="rounded-xl p-6 border border-border bg-surface-2 flex flex-col gap-3.5">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm bg-koreader/20 text-koreader">
-            ✓
-          </div>
-          <div className="text-[15px] font-semibold">Import complete</div>
-        </div>
-        <div className="text-sm">
-          {state.result.imported} new highlights imported
-        </div>
-        <div className="text-sm text-text-2">
-          {state.result.skipped} skipped — already existed in your library
-        </div>
-        <div className="text-xs font-mono text-text-2 pt-1.5 border-t border-border">
-          {state.result.fileName}
-        </div>
-        <Button
-          variant="ghost"
-          className="self-start px-0"
-          onClick={() => setState({ phase: "idle" })}
-        >
-          Import another file
-        </Button>
-      </div>
+      <Toast
+        message={`${fileName} — ${imported} imported, ${skipped} skipped`}
+      />
     );
   }
 

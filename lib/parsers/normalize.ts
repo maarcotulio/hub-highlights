@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 
-export type Source = "KINDLE" | "KOREADER";
+export type Source = "KOREADER";
 
 export interface RawHighlight {
   bookTitle: string;

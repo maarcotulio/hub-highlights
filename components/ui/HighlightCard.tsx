@@ -1,15 +1,22 @@
-import type { MockHighlight } from "@/lib/mock/types";
+export type HighlightItem = {
+  id: string;
+  text: string;
+  note: string | null;
+  location: string | null;
+  chapter: string | null;
+  highlightedAt: Date | null;
+};
 
-function formatDate(iso: string | null): string | null {
-  if (!iso) return null;
-  return new Date(iso).toLocaleDateString("en-US", {
+function formatDate(date: Date | null): string | null {
+  if (!date) return null;
+  return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
   });
 }
 
-export function HighlightCard({ highlight }: { highlight: MockHighlight }) {
+export function HighlightCard({ highlight }: { highlight: HighlightItem }) {
   const metadata = [
     highlight.chapter,
     highlight.location,

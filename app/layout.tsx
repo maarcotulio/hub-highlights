@@ -23,7 +23,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Highlights Hub",
   description:
-    "Import your Kindle and KOReader highlights, unify them in one dashboard, and export them as Obsidian-flavored Markdown.",
+    "Import your KOReader highlights, unify them in one dashboard, and export them as Obsidian-flavored Markdown.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import type { MockHighlight } from "@/lib/mock/types";
-import { HighlightCard } from "@/components/ui/HighlightCard";
+import { HighlightCard, type HighlightItem } from "@/components/ui/HighlightCard";
 
-export function HighlightSearch({ highlights }: { highlights: MockHighlight[] }) {
+export function HighlightSearch({ highlights }: { highlights: HighlightItem[] }) {
   const [query, setQuery] = useState("");
 
   const filtered = query

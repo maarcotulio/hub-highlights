@@ -18,7 +18,7 @@ async function main() {
         userId: user.id,
         title: "Sapiens",
         author: "Yuval Noah Harari",
-        source: "KINDLE",
+        source: "KOREADER",
       },
     },
     update: {},
@@ -26,7 +26,7 @@ async function main() {
       userId: user.id,
       title: "Sapiens",
       author: "Yuval Noah Harari",
-      source: "KINDLE",
+      source: "KOREADER",
     },
   });
 

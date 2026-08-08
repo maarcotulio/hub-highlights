@@ -1,8 +1,18 @@
 import Link from "next/link";
-import type { MockBook } from "@/lib/mock/types";
+import type { Source } from "@/lib/parsers/normalize";
 import { SourceBadge } from "./SourceBadge";
 
-export function BookRow({ book }: { book: MockBook }) {
+type BookRowProps = {
+  book: {
+    id: string;
+    title: string;
+    author: string | null;
+    source: Source;
+    highlightCount: number;
+  };
+};
+
+export function BookRow({ book }: BookRowProps) {
   return (
     <Link
       href={`/dashboard/${book.id}`}
@@ -15,7 +25,7 @@ export function BookRow({ book }: { book: MockBook }) {
       </div>
       <SourceBadge source={book.source} />
       <span className="font-mono text-sm text-text-2 w-28 text-right shrink-0">
-        {book.highlights.length} highlights
+        {book.highlightCount} highlights
       </span>
     </Link>
   );
