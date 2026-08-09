@@ -6,11 +6,6 @@ import { Button } from "@/components/ui/Button";
 export function ConfirmForm({ action }: { action: () => Promise<void> }) {
   const [pending, setPending] = useState(false);
 
-  async function handleClick() {
-    setPending(true);
-    await action();
-  }
-
   return (
     <div className="w-full max-w-sm flex flex-col gap-7">
       <div className="text-center">
@@ -18,16 +13,19 @@ export function ConfirmForm({ action }: { action: () => Promise<void> }) {
           Highlights Hub
         </div>
         <div className="text-[15px] text-text-2">
-          Click below to finish signing in.
+          Confirm below to choose a new password.
         </div>
       </div>
       <Button
         type="button"
         className="w-full text-center"
         disabled={pending}
-        onClick={handleClick}
+        onClick={async () => {
+          setPending(true);
+          await action();
+        }}
       >
-        {pending ? "Signing in…" : "Confirm sign-in"}
+        {pending ? "Confirming…" : "Confirm password reset"}
       </Button>
     </div>
   );

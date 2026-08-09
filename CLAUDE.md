@@ -12,7 +12,7 @@ Highlights Hub: a web app that imports highlights/annotations from **KOReader**,
 - **Styling**: Tailwind CSS
 - **Database**: PostgreSQL via Supabase
 - **ORM**: Prisma
-- **Auth**: Supabase Auth (magic link)
+- **Auth**: Supabase Auth (email + password; no email confirmation on sign-up — password recovery is the only flow that sends mail)
 - **Deploy**: Vercel
 - **Temporary file storage**: Supabase Storage (if the original file needs to be kept)
 
@@ -137,11 +137,15 @@ Exactly 3 file types are accepted, all from KOReader — there is no Kindle/`.tx
 
 Do not regress these — each one closed a real finding:
 
-- **Resolve the user via `lib/currentUser.ts`**, never `prisma.user.upsert({ where: { email } })`. Identity is the Supabase Auth `sub` (`authId`); an email is mutable and re-registrable, so keying on it lets one account inherit another's library.
+- **Resolve the user via `lib/currentUser.ts`**, never `prisma.user.upsert({ where: { email } })`. Identity is the Supabase Auth `sub` (`authId`); an email is mutable and re-registrable, so keying on it lets one account inherit another's library. `resolveDbUser` never falls back to an email lookup, not even for a legacy row with a null `authId`: sign-up runs with `enable_confirmations = false`, so registering proves nothing about owning the address.
 - **Ownership is enforced in the `where` clause** (`findFirst({ where: { id, userId } })`), not by a separate check. A missing row and someone else's row must both 404.
 - **API tokens are stored as sha256 only** (`lib/apiToken.ts`). Nothing may re-display a token after generation.
 - **Request bodies are read through `readLimitedBody`**, never `request.arrayBuffer()` directly — untrusted `.sqlite3` files are loaded whole into sql.js's WASM heap.
 - **Cover content type comes from `sniffImageType`**, never from `?filename=`. The covers bucket is public.
-- **`?next=`-style redirects go through `safeNextPath`** (`lib/safeRedirect.ts`). A leading `/` is not a sufficient check.
+- **`?next=`-style redirects go through `safeNextPath`** (`lib/safeRedirect.ts`). A leading `/` is not a sufficient check: the URL parser strips tab/LF/CR *before* resolving, so `/<tab>/evil.com` collapses to `//evil.com` and changes origin — the whole control range is rejected, by code point rather than a regex holding invisible bytes. Non-string input (a repeated query param) falls back too. `/login` and `/signup` carry the value through to the post-auth redirect; `/auth/confirm` does not read one at all.
+- **Sign-in reports one generic failure** (`app/login/actions.ts`) — never "no such account" vs "wrong password", which would make the form an account-enumeration oracle. Sign-up is the sole place that confirms an address is registered; `/forgot-password` always answers "if that address has an account…", whatever Supabase returned.
+- **`/auth/confirm` pins the OTP type to `recovery`** and never reads it from the query string, pins the destination to `/reset-password` for the same reason, and redeems the token behind a click — link prefetching by mail clients would otherwise burn a one-time token before the user sees it.
+- **Auth server actions are throttled through `lib/auth/rateLimit.ts`** (sign-in, sign-up, password reset). Supabase's own limits are per-IP, and calling it from the server puts every user behind one deployment IP — a shared bucket that neither stops a guesser nor survives one attacker exhausting it. The throttle message is identical whether or not the address has an account.
+- **`/reset-password` requires the recovery grant** (`lib/auth/recoveryGrant.ts`), an httpOnly marker set only after a recovery token is redeemed, and re-checked inside the action — a page guard is navigation, not authorisation. A successful reset revokes every other session; leaving them alive would make the reset cosmetic against the case it exists for.
 - **The Lua parser never evaluates** — it walks an allowlisted AST subset (`lib/parsers/koreader-lua.ts`).
 - **The KOReader plugin requires `https://`** and sets `redirect = false`, because luasocket forwards the `Authorization` header across a cross-host redirect.

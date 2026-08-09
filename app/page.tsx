@@ -33,8 +33,14 @@ export default function Home() {
         </p>
         <div className="mt-9 flex items-center justify-center gap-3">
           <Link
-            href="/login"
+            href="/signup"
             className="text-sm font-medium px-6 py-3 rounded-lg bg-accent text-accent-text hover:opacity-90 transition-opacity"
+          >
+            Create account
+          </Link>
+          <Link
+            href="/login"
+            className="text-sm font-medium px-6 py-3 rounded-lg border border-border bg-surface text-text hover:bg-surface-2 transition-colors"
           >
             Sign in
           </Link>

@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { requireDbUser } from "@/lib/currentUser";
 import { BackLink } from "@/components/ui/BackLink";
 import { formatRelativeDate } from "@/lib/readingStats";
+import { AccountPanel } from "./_components/AccountPanel";
 import { ApiTokenPanel } from "./_components/ApiTokenPanel";
 
 export default async function SettingsPage() {
@@ -26,8 +27,14 @@ export default async function SettingsPage() {
       <BackLink href="/dashboard" className="text-sm text-text-2 inline-block mb-5">
         ← All books
       </BackLink>
-      <div className="text-[26px] font-semibold mb-1">Settings</div>
-      <div className="text-sm text-text-2 mb-8">API access for automated uploads.</div>
+      <div className="text-[26px] font-semibold mb-8">Settings</div>
+
+      <div className="text-base font-semibold mb-1">Account</div>
+      <div className="text-sm text-text-2 mb-4">Who you&apos;re signed in as.</div>
+      <AccountPanel email={dbUser.email} />
+
+      <div className="text-base font-semibold mt-10 mb-1">API access</div>
+      <div className="text-sm text-text-2 mb-4">For automated uploads.</div>
       <ApiTokenPanel
         hasToken={hasToken}
         webhookUrl={webhookUrl}

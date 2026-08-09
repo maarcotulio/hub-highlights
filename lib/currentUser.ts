@@ -13,10 +13,17 @@ import { requireUser } from "@/lib/supabase/auth";
  * email silently gets an empty account, and whoever later claims a released
  * address inherits the previous owner's library.
  *
- * A row with no `authId` is a pre-migration row, adopted by email exactly
- * once. A row whose `authId` is already set to *someone else* is never
- * adopted, no matter how the emails compare — that is precisely the
- * recycled-address case, and the correct outcome is a fresh empty account.
+ * Nothing here is ever resolved by email, not even a pre-migration row with a
+ * null `authId`. Sign-up runs with `enable_confirmations = false`, so creating
+ * an account proves nothing about owning the address — adopting a row by email
+ * would hand whoever signs up first the previous owner's whole library. Under
+ * the old magic-link flow the email *was* proven, which is what made the
+ * adoption safe then and unsafe now.
+ *
+ * The cost is that a legacy row whose `authId` the migration couldn't backfill
+ * becomes unreachable and its owner gets a fresh empty account. That is the
+ * direction to fail in: stranded data can be reattached by hand, a handed-over
+ * library cannot be taken back.
  */
 export const resolveDbUser = cache(async (authUser: AuthUser) => {
   const authId = authUser.id;
@@ -30,13 +37,6 @@ export const resolveDbUser = cache(async (authUser: AuthUser) => {
       return prisma.user.update({ where: { id: byAuthId.id }, data: { email } });
     }
     return byAuthId;
-  }
-
-  if (email) {
-    const unclaimed = await prisma.user.findFirst({ where: { email, authId: null } });
-    if (unclaimed) {
-      return prisma.user.update({ where: { id: unclaimed.id }, data: { authId } });
-    }
   }
 
   return prisma.user.create({ data: { authId, email } });

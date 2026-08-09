@@ -4,11 +4,19 @@ import { safeNextPath } from "./safeRedirect";
 const ORIGIN = "https://hub.example.com";
 
 // What actually matters is where the value lands after new URL() resolves it,
-// which is what app/auth/confirm/route.ts does with the result. Asserting on
-// the resolved origin catches a bad filter that merely "looks" path-like.
+// which is what the browser does with the post-sign-in redirect issued by
+// app/login/actions.ts. Asserting on the resolved origin catches a bad filter
+// that merely "looks" path-like.
 function resolvedOrigin(next: string) {
   return new URL(safeNextPath(next), ORIGIN).origin;
 }
+
+// Built from code points rather than typed literally: a raw control byte in a
+// source file is invisible in an editor and a diff, so a well-meaning reformat
+// would silently gut these cases.
+const TAB = String.fromCharCode(9);
+const LF = String.fromCharCode(10);
+const CR = String.fromCharCode(13);
 
 describe("safeNextPath", () => {
   it("keeps ordinary internal paths", () => {
@@ -31,9 +39,19 @@ describe("safeNextPath", () => {
       "https://evil.com/steal",
       "http://evil.com",
       "javascript:alert(1)",
+      // The URL parser drops these before resolving, so each one collapses to
+      // "//evil.com" and changes origin while still looking path-like.
+      `/${TAB}/evil.com`,
+      `/${LF}/evil.com`,
+      `/${CR}/evil.com`,
+      `/${TAB}\\evil.com`,
     ]) {
       expect(resolvedOrigin(attack)).toBe(ORIGIN);
     }
+  });
+
+  it("falls back on a repeated query param, which arrives as an array", () => {
+    expect(safeNextPath(["/a", "/b"])).toBe("/dashboard");
   });
 
   it("honours a custom fallback", () => {

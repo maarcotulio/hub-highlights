@@ -43,8 +43,8 @@ anytime with `npm run supabase:status`):
 - `SUPABASE_SECRET_KEY` → the service_role key
 - `DATABASE_URL` → the pooled connection string (port 6543, `?pgbouncer=true`)
 - `DIRECT_URL` → the direct connection string (port 5432, used for migrations)
-- `SITE_URL` → the origin your browser actually uses to reach the app (matters for
-  magic-link redirects)
+- `SITE_URL` → the origin your browser actually uses to reach the app (the allow-list
+  Auth redirects are checked against)
 
 Then apply the Prisma schema and start the app:
 
@@ -53,8 +53,12 @@ npx prisma migrate dev
 npm run dev
 ```
 
-Supabase Studio (local dashboard) runs at `http://127.0.0.1:54323`, and the local email
-testing inbox for magic links at `http://127.0.0.1:54324`.
+Create an account at `/signup` — sign-in is email + password with no email
+confirmation step, so signing up and in never leaves the machine.
+
+Supabase Studio (local dashboard) runs at `http://127.0.0.1:54323`. Password
+recovery is the one flow that does send mail; locally it lands in the Inbucket test
+inbox at `http://127.0.0.1:54324` instead of a real address.
 
 Stop the stack with `npm run supabase:stop` when you're done (data persists across
 restarts; only `supabase stop --no-backup` or `supabase db reset` wipe it).
@@ -120,13 +124,35 @@ migrations (run from your machine or CI), the latter is only read by
 In the Supabase dashboard → Authentication → URL Configuration: set **Site URL** to
 the production domain and add it to **Redirect URLs**.
 
+Then, under Authentication → Providers → Email, match the local settings in
+`supabase/config.toml` — that file only governs the Docker stack, so a hosted project
+keeps its own defaults until you change them:
+
+- **Confirm email**: off. Sign-up creates the session immediately; leaving it on
+  means every new account waits on an email that this app never asks anyone to send.
+- **Minimum password length**: 8, matching `MIN_PASSWORD_LENGTH` in
+  `lib/auth/credentials.ts`. If the project requires more than the form does, the
+  form accepts a password Supabase then rejects.
+- **Secure password change**: on, so a stale session can't rotate the password
+  without a recent sign-in. Redeeming a recovery link counts as one.
+- **Minimum interval between emails**: 60 seconds. `/forgot-password` is public and
+  answers the same way for every address, so a shorter interval lets it be used to
+  flood a stranger's inbox and burn your SMTP quota.
+
 Then configure custom SMTP (Authentication → Emails) with a real provider (Resend,
-Postmark, SendGrid, …) — Supabase's built-in email sending is rate-limited too low
-for real magic-link traffic.
+Postmark, SendGrid, …). Sign-up and sign-in send nothing, but **password recovery
+does** — without working SMTP, "Forgot your password?" silently goes nowhere and
+locked-out users have no way back in. Supabase's built-in sender is rate-limited too
+low to rely on. Upload `supabase/templates/recovery.html` as the "Reset password"
+template while you're there: the default template points at a route this app doesn't
+serve.
 
 **5. Verify**
 
-- Sign in via magic link on the production URL.
+- Create an account at `/signup` on the production URL, then sign out from
+  Settings and sign back in at `/login`.
+- Run "Forgot your password?" end to end and confirm the email arrives and the link
+  lands on `/reset-password`.
 - Upload a `metadata.<ext>.lua` file and a cover through the KOReader webhook.
 - `curl` the REST endpoint with only the publishable key
   (`https://<project-ref>.supabase.co/rest/v1/User`) — it must come back empty/denied,

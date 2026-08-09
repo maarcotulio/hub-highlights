@@ -9,10 +9,14 @@
  * both the request and the response.
  */
 
-// The browser Supabase client talks to Auth directly, and cover images are
-// served from the project's Storage domain, so both need to be reachable.
-// Derived from the configured URL rather than a wildcard, so the policy names
-// exactly one origin.
+// Cover images are served from the project's Storage domain, so that origin has
+// to be reachable in img-src. Derived from the configured URL rather than a
+// wildcard, so the policy names exactly one origin.
+//
+// It is deliberately NOT in connect-src: auth moved to server actions and
+// lib/supabase/client.ts is gone, so the only network call the browser makes is
+// fetch("/api/upload"), same-origin. Nothing left in the page needs to reach
+// Supabase, and an XSS shouldn't be handed the reach either.
 function supabaseOrigin(): string {
   const raw = process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (!raw) return "";
@@ -40,7 +44,7 @@ export function contentSecurityPolicy(nonce: string): string {
     "style-src 'self' 'unsafe-inline'",
     `img-src 'self' blob: data:${supabase ? ` ${supabase}` : ""}`,
     "font-src 'self' data:",
-    `connect-src 'self'${supabase ? ` ${supabase}` : ""}`,
+    "connect-src 'self'",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
