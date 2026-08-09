@@ -33,9 +33,22 @@ Highlights Hub deployment):
   your computer, and never commit it — the token grants full read/write access to your
   Highlights Hub account.
 
-The server URL **must be `https://`**. The token is sent as a bearer header on every
-request, so over plain `http://` it would be readable by anyone on the same Wi-Fi; the
-plugin refuses to send it and tells you why.
+### Which server URLs are accepted
+
+The token is sent as a bearer header on every request, so the plugin will not send it
+somewhere it could be read off the wire by a stranger:
+
+- **`https://` — anywhere.** The normal case for a hosted deployment.
+- **`http://` — local network addresses only**: `192.168.x.x`, `10.x.x.x`,
+  `172.16.x.x`–`172.31.x.x`, `127.x.x.x`, `localhost`, `[::1]`, or an mDNS name ending
+  in `.local` (e.g. `http://hub.local:8000`). This is what makes a self-hosted stack on
+  your own network usable without setting up a certificate.
+- **`http://` to any other host — refused**, with a message explaining why.
+
+On `http://` inside your LAN the token *is* readable by anyone else on that network.
+That's a real trade-off, not an oversight: it's bounded to addresses that can't be
+reached from outside your network, which is why the allowance stops where it does. If
+your reader shares Wi-Fi with people you don't trust, use `https://`.
 
 ## Where to find it
 

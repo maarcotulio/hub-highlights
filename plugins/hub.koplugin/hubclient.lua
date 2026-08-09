@@ -27,13 +27,63 @@ end
 -- stop retrying the same unreachable host instead of blocking the UI thread
 -- for one full timeout per remaining file. A numeric status_code (even a
 -- non-2xx one) means the server did respond, so only that one item failed.
--- Rejects anything that isn't a plain https:// URL. Two reasons, both about
--- the bearer token: over http:// it travels in clear text on whatever Wi-Fi
--- the device is on, and a MITM there can also inject the redirect described
--- below. Enforced here as well as at the settings/env entry points, since this
--- is the last place before the token goes on the wire.
+-- Hosts that are only reachable from inside the reader's own network. Over
+-- http:// the bearer token travels in clear text, so this list is what bounds
+-- that exposure to a network the reader controls instead of the open internet.
+-- Every IPv4 pattern is anchored at both ends on purpose: a *name* that merely
+-- looks private ("10.example.com", "192.168.1.1.evil.com") must not match.
+local function isPrivateHost(host)
+    if host == "localhost" or host == "[::1]" then return true end
+
+    if host:match("^127%.%d+%.%d+%.%d+$") then return true end   -- loopback
+    if host:match("^10%.%d+%.%d+%.%d+$") then return true end    -- 10/8
+    if host:match("^192%.168%.%d+%.%d+$") then return true end   -- 192.168/16
+    if host:match("^169%.254%.%d+%.%d+$") then return true end   -- link-local
+
+    -- 172.16/12 is 172.16 through 172.31, not the whole 172.x space — a looser
+    -- "^172%.%d+%." would hand the token to public addresses like 172.200.0.1.
+    local second_octet = host:match("^172%.(%d+)%.%d+%.%d+$")
+    if second_octet then
+        local n = tonumber(second_octet)
+        return n ~= nil and n >= 16 and n <= 31
+    end
+
+    -- .local is reserved for mDNS (RFC 6762), so it resolves on the local link
+    -- only and can't be registered by anyone.
+    return host:match("%.local$") ~= nil
+end
+
+-- Extracts the bare host from a URL, dropping port and path.
+local function hostOf(server_url)
+    local authority = server_url:match("^%a[%w+.-]*://([^/?#]+)")
+    if not authority then return nil end
+
+    -- Reject userinfo instead of parsing around it: it has no legitimate use
+    -- here, and "http://192.168.1.1@evil.com" reads as private at a glance
+    -- while actually resolving to evil.com.
+    if authority:find("@", 1, true) then return nil end
+
+    -- A bracketed IPv6 literal keeps its colons; everything else splits on the
+    -- first colon to drop the port.
+    local v6 = authority:match("^(%[[^%]]*%])")
+    if v6 then return v6:lower() end
+    return (authority:match("^([^:]+)") or ""):lower()
+end
+
+-- https:// is always accepted. http:// is accepted only for a private/LAN
+-- host, which is what makes a self-hosted stack on the home network usable
+-- without a certificate. The trade-off is real and deliberate: on http:// the
+-- bearer token is readable by anyone else on that Wi-Fi, so the allowance
+-- stops at addresses that can't be reached from outside the network.
+-- Enforced here as well as at the settings/env entry points, since this is the
+-- last place before the token goes on the wire.
 function HubClient.isValidServerUrl(server_url)
-    return type(server_url) == "string" and server_url:match("^https://[^/]") ~= nil
+    if type(server_url) ~= "string" then return false end
+    if server_url:match("^https://[^/]") then return true end
+    if not server_url:match("^http://") then return false end
+
+    local host = hostOf(server_url)
+    return host ~= nil and isPrivateHost(host)
 end
 
 function HubClient:request(method, path, body)
@@ -41,7 +91,7 @@ function HubClient:request(method, path, body)
         return false, "not_configured", nil
     end
     if not HubClient.isValidServerUrl(self.server_url) then
-        logger.warn("HubClient: refusing to send credentials to a non-https server URL")
+        logger.warn("HubClient: refusing to send credentials to an insecure server URL")
         return false, "insecure_url", nil
     end
 

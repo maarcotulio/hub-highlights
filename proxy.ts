@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/session";
-import { contentSecurityPolicy, STATIC_SECURITY_HEADERS } from "@/lib/securityHeaders";
+import { contentSecurityPolicy, staticSecurityHeaders } from "@/lib/securityHeaders";
 
 export async function proxy(request: NextRequest) {
   const nonce = crypto.randomUUID().replace(/-/g, "");
@@ -14,7 +14,7 @@ export async function proxy(request: NextRequest) {
   const response = await updateSession(request);
 
   response.headers.set("content-security-policy", csp);
-  for (const [name, value] of Object.entries(STATIC_SECURITY_HEADERS)) {
+  for (const [name, value] of Object.entries(staticSecurityHeaders())) {
     response.headers.set(name, value);
   }
 

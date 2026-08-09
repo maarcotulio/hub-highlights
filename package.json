@@ -8,8 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "deploy": "vercel deploy --prod",
+    "deploy": "prisma migrate deploy && vercel deploy --prod",
     "parse:check": "tsx scripts/parse-check.ts",
+    "package:plugin": "node scripts/package-plugin.mjs",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "supabase:status": "supabase status"

@@ -17,14 +17,32 @@
 // lib/supabase/client.ts is gone, so the only network call the browser makes is
 // fetch("/api/upload"), same-origin. Nothing left in the page needs to reach
 // Supabase, and an XSS shouldn't be handed the reach either.
-function supabaseOrigin(): string {
+function supabaseUrl(): URL | null {
   const raw = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!raw) return "";
+  if (!raw) return null;
   try {
-    return new URL(raw).origin;
+    return new URL(raw);
   } catch {
-    return "";
+    return null;
   }
+}
+
+function supabaseOrigin(): string {
+  return supabaseUrl()?.origin ?? "";
+}
+
+// A self-hosted stack on a home LAN is reachable over plain http://, because
+// there is no certificate authority that will issue for 192.168.x.x and the
+// alternative is telling those users to run without the KOReader plugin.
+//
+// Two of the headers below actively break that deployment, so both are keyed
+// off the deployment's own scheme rather than sent unconditionally. Read from
+// NEXT_PUBLIC_SUPABASE_URL because Caddy serves the app and Supabase under one
+// origin in the self-hosted stack, making it the scheme the browser actually
+// sees. Anything that isn't explicitly http: is treated as secure, so a
+// missing or malformed value keeps the strict headers.
+function isPlainHttpDeployment(): boolean {
+  return supabaseUrl()?.protocol === "http:";
 }
 
 export function contentSecurityPolicy(nonce: string): string {
@@ -49,18 +67,30 @@ export function contentSecurityPolicy(nonce: string): string {
     "base-uri 'self'",
     "form-action 'self'",
     "object-src 'none'",
-    "upgrade-insecure-requests",
+    // Rewrites subresource requests from http:// to https://. On an https
+    // deployment that closes a real downgrade hole; on a plain-http LAN
+    // deployment it upgrades every cover image to a port nothing is listening
+    // on, and the failure surfaces as a broken thumbnail rather than an error.
+    ...(isPlainHttpDeployment() ? [] : ["upgrade-insecure-requests"]),
   ].join("; ");
 }
 
-export const STATIC_SECURITY_HEADERS: Record<string, string> = {
-  // Redundant with frame-ancestors above, kept for browsers that honour only
-  // the older header.
-  "X-Frame-Options": "DENY",
-  "X-Content-Type-Options": "nosniff",
-  // Highlight and book titles end up in URLs; don't hand them to third-party
-  // origins in the Referer header.
-  "Referrer-Policy": "strict-origin-when-cross-origin",
-  "Permissions-Policy": "camera=(), microphone=(), geolocation=(), interest-cohort=()",
-  "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
-};
+export function staticSecurityHeaders(): Record<string, string> {
+  return {
+    // Redundant with frame-ancestors above, kept for browsers that honour only
+    // the older header.
+    "X-Frame-Options": "DENY",
+    "X-Content-Type-Options": "nosniff",
+    // Highlight and book titles end up in URLs; don't hand them to third-party
+    // origins in the Referer header.
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+    // Browsers ignore HSTS received over http, so emitting it on a LAN
+    // deployment would be merely useless — except that it also pins the host
+    // to https for two years the moment that host is ever served over TLS
+    // once, which would strand a LAN deployment that has no certificate.
+    ...(isPlainHttpDeployment()
+      ? {}
+      : { "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload" }),
+  };
+}

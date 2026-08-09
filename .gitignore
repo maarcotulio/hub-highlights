@@ -53,3 +53,6 @@ next-env.d.ts
 
 data/*.*
 **/__fixtures__/*.*
+
+# build artifacts (hub.koplugin.zip is attached to releases, not committed)
+/dist

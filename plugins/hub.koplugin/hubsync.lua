@@ -175,7 +175,7 @@ function HubSync.run(settings, mode)
     if not HubClient.isValidServerUrl(server_url) then
         if mode == "forced" then
             UIManager:show(InfoMessage:new{
-                text = _("The server URL must start with https:// — the API token is sent with every request and would otherwise travel unencrypted."),
+                text = _("The server URL must use https://, or http:// with a local network address such as http://192.168.1.50:8000 — the API token is sent with every request, so plain http:// to a public host would expose it."),
                 timeout = 5,
             })
         end

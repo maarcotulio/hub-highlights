@@ -13,7 +13,7 @@ Highlights Hub: a web app that imports highlights/annotations from **KOReader**,
 - **Database**: PostgreSQL via Supabase
 - **ORM**: Prisma
 - **Auth**: Supabase Auth (email + password; no email confirmation on sign-up — password recovery is the only flow that sends mail)
-- **Deploy**: Vercel
+- **Deploy**: two supported paths — Vercel + hosted Supabase (`docs/deploy-hosted.md`), or the whole stack in Docker on the user's own machine (`docs/deploy-self-hosted.md`). Self-hosting runs the same GoTrue/Storage services, so nothing in this file changes between them.
 - **Temporary file storage**: Supabase Storage (if the original file needs to be kept)
 
 ## Commands
@@ -27,12 +27,18 @@ npx prisma migrate dev   # apply migrations in dev
 npx prisma studio        # inspect the database visually
 npx prisma generate      # regenerate the client after changing the schema
 npm run build             # production build
+npm run test              # vitest
 npm run lint               # lint
+
+# Self-hosted production stack (app + Postgres + Auth + Storage + Caddy)
+docker compose -f docker/docker-compose.yml --env-file docker/.env up -d --build
 ```
 
-Local dev (Phase 0) uses the Supabase CLI's own Docker-managed stack — driven by
-`supabase/config.toml` — instead of a hand-written `docker-compose.yml`. Requires
-Docker (Desktop w/ WSL integration, or Docker Engine in WSL) already running.
+Local dev uses the Supabase CLI's own Docker-managed stack — driven by
+`supabase/config.toml` — which is *not* the same thing as the production self-hosted
+stack in `docker/`. `supabase/config.toml` governs only the CLI stack; the compose
+file governs only production. Both require Docker (Desktop w/ WSL integration, or
+Docker Engine in WSL) already running.
 
 ## Folder structure (target)
 
@@ -148,4 +154,5 @@ Do not regress these — each one closed a real finding:
 - **Auth server actions are throttled through `lib/auth/rateLimit.ts`** (sign-in, sign-up, password reset). Supabase's own limits are per-IP, and calling it from the server puts every user behind one deployment IP — a shared bucket that neither stops a guesser nor survives one attacker exhausting it. The throttle message is identical whether or not the address has an account.
 - **`/reset-password` requires the recovery grant** (`lib/auth/recoveryGrant.ts`), an httpOnly marker set only after a recovery token is redeemed, and re-checked inside the action — a page guard is navigation, not authorisation. A successful reset revokes every other session; leaving them alive would make the reset cosmetic against the case it exists for.
 - **The Lua parser never evaluates** — it walks an allowlisted AST subset (`lib/parsers/koreader-lua.ts`).
-- **The KOReader plugin requires `https://`** and sets `redirect = false`, because luasocket forwards the `Authorization` header across a cross-host redirect.
+- **The KOReader plugin accepts `https://` anywhere, and `http://` only for a private/LAN host** (`lib`-side equivalent lives in `plugins/hub.koplugin/hubclient.lua`). The bearer token goes out on every request, so plain `http://` to a public host is refused. The allowance covers `localhost`, `[::1]`, `127/8`, `10/8`, `172.16/12`, `192.168/16`, `169.254/16`, and `*.local`; it exists so a self-hosted stack on a home network works without a certificate, and it stops there because those addresses can't be reached from outside that network. Two details are load-bearing: `172.16/12` is `172.16`–`172.31` only (a looser `172.%d+.` would hand the token to public space), and a URL carrying userinfo is rejected outright, since `http://192.168.1.1@evil.com` reads as private at a glance while resolving to `evil.com`. `redirect = false` stays regardless of scheme, because luasocket forwards the `Authorization` header across a cross-host redirect.
+- **`upgrade-insecure-requests` and `Strict-Transport-Security` are conditional on the deployment scheme** (`lib/securityHeaders.ts`), not unconditional. A self-hosted LAN stack is served over plain `http://` because no CA issues for `192.168.x.x`; there, `upgrade-insecure-requests` would rewrite every cover request to a port nothing serves, and HSTS would pin the host to https for two years the first time it ever saw TLS. Anything that isn't explicitly `http:` — including a missing or unparseable value — keeps both headers, so a parse failure can't silently downgrade a hosted deployment. Every other hardening header is unconditional.

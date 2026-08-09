@@ -1,10 +1,25 @@
-# Highlights Hub
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/banner-dark.svg">
+    <img src=".github/banner-light.svg" alt="Highlights Hub — your KOReader highlights, unified and in Obsidian" width="100%">
+  </picture>
+</p>
 
-Web app that imports highlights/annotations from **KOReader**, unifies them in a
-dashboard, and exports them as **Markdown in Obsidian format**. Built for readers who
-use Obsidian as a second brain and want their highlights there without manual work.
+<p align="center">
+  Web app that imports highlights and annotations from <strong>KOReader</strong>, unifies
+  them in a dashboard, and exports them as <strong>Obsidian-flavored Markdown</strong>.
+  <br>
+  Built for readers who use Obsidian as a second brain and want their highlights there
+  without manual work.
+</p>
 
-<!-- TODO: record a GIF of the flow (upload → dashboard → export) and drop it here -->
+<p align="center">
+  <a href="docs/deploy-self-hosted.md"><strong>Self-host it</strong></a>
+  ·
+  <a href="docs/deploy-hosted.md">Deploy to Vercel</a>
+  ·
+  <a href="plugins/hub.koplugin/README.md">KOReader plugin</a>
+</p>
 
 ## How it works
 
@@ -17,8 +32,7 @@ use Obsidian as a second brain and want their highlights there without manual wo
 3. **Export** — one book as `.md`, or everything as a `.zip`, formatted as Obsidian
    `> [!quote]` callouts with frontmatter.
 
-See [`ROADMAP.md`](ROADMAP.md) for the full phase plan and what's built so far, and
-[`CLAUDE.md`](CLAUDE.md) for stack/architecture details.
+See [`CLAUDE.md`](CLAUDE.md) for stack and architecture details.
 
 ## Local development (Supabase in Docker)
 
@@ -27,8 +41,9 @@ devDependency) drives a local Docker stack (Postgres, Auth, Storage, Studio) bas
 `supabase/config.toml`.
 
 Prerequisite: Docker must be running (Docker Desktop with WSL integration, or Docker
-Engine directly in WSL — either works, this repo doesn't ship a hand-written
-`docker-compose.yml` since the Supabase CLI manages its own containers).
+Engine directly in WSL — either works, the CLI manages its own containers). This is a
+*development* stack and is separate from the production self-hosting stack in
+[`docker/`](docker/) — `supabase/config.toml` governs only the former.
 
 ```bash
 npm install
@@ -63,100 +78,28 @@ inbox at `http://127.0.0.1:54324` instead of a real address.
 Stop the stack with `npm run supabase:stop` when you're done (data persists across
 restarts; only `supabase stop --no-backup` or `supabase db reset` wipe it).
 
-## Deploying to production (Vercel + hosted Supabase)
+## Deploying to production
 
-Everything above runs against the local Docker stack. To serve real users you need a
-hosted Supabase project and a Vercel deployment, in this order — each step depends on
-the previous one.
+Everything above runs against the local dev stack. To serve real users, pick one of two
+paths — same app code, same Prisma schema, same auth either way. Only who runs the
+infrastructure changes.
 
-**1. Provision Supabase**
-
-Create a project at [supabase.com](https://supabase.com), then link it locally:
+### [Self-hosted](docs/deploy-self-hosted.md) — everything in Docker, on your machine
 
 ```bash
-supabase link --project-ref <project-ref>
+cp docker/.env.example docker/.env    # fill it in — read the URL section first
+docker compose -f docker/docker-compose.yml --env-file docker/.env up -d --build
 ```
 
-Grab the connection strings and keys from Settings → API / Database:
-`DATABASE_URL` (pooled, port 6543, `?pgbouncer=true`), `DIRECT_URL` (direct, port
-5432), `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
-`SUPABASE_SECRET_KEY`.
+App, Postgres, Auth, and Storage in one compose file, behind a single origin. Only one
+port is published, and your highlights never leave hardware you control. You take on
+backups and updates in exchange. The KOReader plugin works over plain `http://` on a
+private network, so no certificate is needed to get started.
 
-Both connection strings embed the database password. They're stable — the host and
-project-ref never change — and only break if you reset the database password from the
-dashboard, which invalidates every copy of the old URL (Vercel env vars, `.env`, CI)
-until you update them.
+### [Vercel + Supabase Cloud](docs/deploy-hosted.md) — nothing to run yourself
 
-**2. Prepare the database — before any deploy**
-
-```bash
-DIRECT_URL=<direct-hosted-url> npx prisma migrate deploy
-```
-
-This must run before the app is reachable. It includes the RLS lockdown migration
-(`20260809120001_lock_down_data_api`) that revokes `anon`/`authenticated` access to
-every table — without it, the publishable key (shipped in the browser bundle by
-design) can read `User.apiTokenHash` and everyone's highlights straight through the
-Supabase Data API.
-
-Then create the `covers` storage bucket by hand (Storage → New bucket): `public`,
-2MiB limit, `image/png`/`image/jpeg`. The `[storage.buckets.covers]` block in
-`supabase/config.toml` only applies to the local Docker stack — it has no effect on a
-hosted project.
-
-**3. Deploy to Vercel**
-
-Connect the repo (or `vercel deploy --prod`). Set these as Production environment
-variables *before* the first build — `NEXT_PUBLIC_*` values are baked in at build
-time:
-
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-- `SUPABASE_SECRET_KEY`
-- `DATABASE_URL`
-
-`DIRECT_URL` and `SITE_URL` don't need to go to Vercel — the former is only used for
-migrations (run from your machine or CI), the latter is only read by
-`supabase/config.toml` for the local stack.
-
-**4. Close the loop on Auth — needs the domain from step 3**
-
-In the Supabase dashboard → Authentication → URL Configuration: set **Site URL** to
-the production domain and add it to **Redirect URLs**.
-
-Then, under Authentication → Providers → Email, match the local settings in
-`supabase/config.toml` — that file only governs the Docker stack, so a hosted project
-keeps its own defaults until you change them:
-
-- **Confirm email**: off. Sign-up creates the session immediately; leaving it on
-  means every new account waits on an email that this app never asks anyone to send.
-- **Minimum password length**: 8, matching `MIN_PASSWORD_LENGTH` in
-  `lib/auth/credentials.ts`. If the project requires more than the form does, the
-  form accepts a password Supabase then rejects.
-- **Secure password change**: on, so a stale session can't rotate the password
-  without a recent sign-in. Redeeming a recovery link counts as one.
-- **Minimum interval between emails**: 60 seconds. `/forgot-password` is public and
-  answers the same way for every address, so a shorter interval lets it be used to
-  flood a stranger's inbox and burn your SMTP quota.
-
-Then configure custom SMTP (Authentication → Emails) with a real provider (Resend,
-Postmark, SendGrid, …). Sign-up and sign-in send nothing, but **password recovery
-does** — without working SMTP, "Forgot your password?" silently goes nowhere and
-locked-out users have no way back in. Supabase's built-in sender is rate-limited too
-low to rely on. Upload `supabase/templates/recovery.html` as the "Reset password"
-template while you're there: the default template points at a route this app doesn't
-serve.
-
-**5. Verify**
-
-- Create an account at `/signup` on the production URL, then sign out from
-  Settings and sign back in at `/login`.
-- Run "Forgot your password?" end to end and confirm the email arrives and the link
-  lands on `/reset-password`.
-- Upload a `metadata.<ext>.lua` file and a cover through the KOReader webhook.
-- `curl` the REST endpoint with only the publishable key
-  (`https://<project-ref>.supabase.co/rest/v1/User`) — it must come back empty/denied,
-  confirming the RLS lockdown took effect.
+No servers to patch, no backups to schedule — at the cost of your reading data living
+on someone else's infrastructure. The fastest way to a real deployment.
 
 ## KOReader plugin
 
@@ -173,6 +116,13 @@ npm run dev               # dev server
 npx prisma migrate dev   # apply migrations in dev
 npx prisma studio        # inspect the database visually
 npx prisma generate      # regenerate the client after changing the schema
+npm run test              # unit tests
 npm run build             # production build
 npm run lint               # lint
 ```
+
+## Support
+
+If you enjoyed the project, you can leave a small donation on Ko-fi.
+
+<a href='https://ko-fi.com/juulius' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://cdn.ko-fi.com/cdn/kofi5.png?v=3' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>

@@ -1,0 +1,25 @@
+node_modules
+.next
+.git
+.vercel
+.env
+.env.*
+!.env.example
+
+# Generated during the image build by `prisma generate`; a host copy would
+# shadow it with one built for a different platform.
+app/generated
+
+coverage
+*.tsbuildinfo
+npm-debug.log*
+
+# Real device exports and test fixtures — never bake reading data into an image.
+data
+**/__fixtures__
+
+docs
+README.md
+CLAUDE.md
+AGENTS.md
+.github

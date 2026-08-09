@@ -70,7 +70,7 @@ function Hub:loadEnvFile()
         if HubClient.isValidServerUrl(server_url) then
             self.settings:saveSetting("server_url", server_url)
         else
-            logger.warn("Hub: ignoring non-https SERVER_URL from .env")
+            logger.warn("Hub: ignoring insecure SERVER_URL from .env")
         end
     end
     if env.API_TOKEN and env.API_TOKEN ~= "" then
@@ -142,7 +142,7 @@ function Hub:showSettingsDialog()
         fields = {
             {
                 text = self.settings:readSetting("server_url") or "",
-                hint = _("Server URL, e.g. https://your-app.vercel.app"),
+                hint = _("Server URL, e.g. https://your-app.vercel.app or http://192.168.1.50:8000"),
             },
             {
                 text = self.settings:readSetting("api_token") or "",
@@ -163,11 +163,11 @@ function Hub:showSettingsDialog()
                     callback = function()
                         local fields = self.settings_dialog:getFields()
                         local server_url = fields[1]:gsub("/*$", "")
-                        -- Refuse http:// here rather than silently syncing the
-                        -- token in clear text over the device's Wi-Fi.
+                        -- Refuse public-host http:// here rather than silently
+                        -- syncing the token in clear text across the internet.
                         if not HubClient.isValidServerUrl(server_url) then
                             UIManager:show(InfoMessage:new{
-                                text = _("The server URL must start with https:// — the API token is sent with every request and would otherwise travel unencrypted."),
+                                text = _("The server URL must use https://, or http:// with a local network address such as http://192.168.1.50:8000 — the API token is sent with every request, so plain http:// to a public host would expose it."),
                                 timeout = 5,
                             })
                             return

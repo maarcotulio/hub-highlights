@@ -1,0 +1,235 @@
+# Self-hosted Highlights Hub — the whole stack, on your own machine.
+#
+# Only `caddy` publishes a port. Everything else talks over the internal
+# compose network and is unreachable from the LAN, let alone the internet.
+#
+#   docker compose -f docker/docker-compose.yml up -d --build
+#
+# Read docs/deploy-self-hosted.md before the first build: the deployment URL is
+# baked into the app image and is expensive to change afterwards.
+
+name: highlights-hub
+
+services:
+  db:
+    # Must be supabase/postgres, not the stock postgres image: it ships the
+    # roles (anon, authenticated, service_role, supabase_auth_admin,
+    # supabase_storage_admin) and the auth/storage schemas that GoTrue,
+    # storage-api, and the RLS lockdown migration all expect to already exist.
+    image: supabase/postgres:${POSTGRES_IMAGE_TAG:-15.8.1.060}
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: postgres
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      JWT_EXP: 3600
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      # Fixes supabase_auth_admin/supabase_storage_admin having no password —
+      # see the comment in that script for why this is needed. Mounted as a
+      # single file, not a directory: docker-entrypoint-initdb.d only globs
+      # its own top level, it doesn't recurse into subdirectories.
+      - ./db-init/zzz-set-role-passwords.sh:/docker-entrypoint-initdb.d/zzz-set-role-passwords.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -h localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # One-shot: applies prisma/migrations, then exits. The app waits for it to
+  # complete successfully, so a failed migration blocks the deploy instead of
+  # shipping an app against a database that isn't ready.
+  #
+  # This includes 20260809120001_lock_down_data_api. PostgREST isn't in this
+  # stack, so that migration is currently belt-and-braces — it stays applied so
+  # that adding a Data API later can't silently expose every table.
+  migrate:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: tools
+    restart: "no"
+    environment:
+      DIRECT_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/postgres
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/postgres
+    depends_on:
+      db:
+        condition: service_healthy
+
+  auth:
+    image: supabase/gotrue:${GOTRUE_IMAGE_TAG:-v2.177.0}
+    restart: unless-stopped
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: ${HUB_PUBLIC_URL:?set HUB_PUBLIC_URL in .env}
+
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgresql://supabase_auth_admin:${POSTGRES_PASSWORD}@db:5432/postgres
+
+      # Must match the origin the browser actually uses, or the password
+      # recovery link lands outside the allow-list and the flow dead-ends.
+      GOTRUE_SITE_URL: ${HUB_PUBLIC_URL}
+      GOTRUE_URI_ALLOW_LIST: ${HUB_PUBLIC_URL}/**
+
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+
+      GOTRUE_DISABLE_SIGNUP: "false"
+      # Sign-up creates the session immediately. Mirrors enable_confirmations =
+      # false in supabase/config.toml; this app never asks anyone to confirm.
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_EXTERNAL_PHONE_ENABLED: "false"
+      GOTRUE_SMS_AUTOCONFIRM: "false"
+
+      # Kept in step with MIN_PASSWORD_LENGTH in lib/auth/credentials.ts. If
+      # this is higher than the form's rule, the form accepts a password GoTrue
+      # then rejects.
+      GOTRUE_PASSWORD_MIN_LENGTH: 8
+      # A stale session can't rotate the password without a recent sign-in;
+      # redeeming a recovery link counts as one.
+      GOTRUE_SECURITY_UPDATE_PASSWORD_REQUIRE_REAUTHENTICATION: "true"
+
+      # Password recovery is the only mail this app sends — but it's the flow
+      # that gets a locked-out user back in, so without working SMTP there is
+      # no way back into an account.
+      GOTRUE_SMTP_HOST: ${SMTP_HOST}
+      GOTRUE_SMTP_PORT: ${SMTP_PORT}
+      GOTRUE_SMTP_USER: ${SMTP_USER}
+      GOTRUE_SMTP_PASS: ${SMTP_PASS}
+      GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL}
+      GOTRUE_SMTP_SENDER_NAME: ${SMTP_SENDER_NAME:-Highlights Hub}
+      # /forgot-password is public and answers identically for every address,
+      # so this is what stops it being used to flood a stranger's inbox.
+      GOTRUE_SMTP_MAX_FREQUENCY: 60s
+      GOTRUE_MAILER_URLPATHS_RECOVERY: /auth/confirm
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  storage:
+    image: supabase/storage-api:${STORAGE_IMAGE_TAG:-v1.25.7}
+    restart: unless-stopped
+    environment:
+      ANON_KEY: ${ANON_KEY:?set ANON_KEY in .env}
+      SERVICE_KEY: ${SERVICE_ROLE_KEY:?set SERVICE_ROLE_KEY in .env}
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      AUTH_JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgresql://supabase_storage_admin:${POSTGRES_PASSWORD}@db:5432/postgres
+      DB_INSTALL_ROLES: "true"
+
+      # Covers are stored on a local volume, not S3 — nothing here calls out to
+      # a cloud provider.
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      FILE_SIZE_LIMIT: 2097152
+      TENANT_ID: hub
+      REGION: local
+      GLOBAL_S3_BUCKET: hub
+
+      # No imgproxy in this stack: the app serves covers through plain public
+      # URLs and never uses Storage's image transformation API.
+      ENABLE_IMAGE_TRANSFORMATION: "false"
+    volumes:
+      - storage-data:/var/lib/storage
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  # One-shot: creates the public `covers` bucket the cover webhook uploads to.
+  # Runs scripts/create-covers-bucket.ts — the same script the hosted path uses
+  # — so the bucket's settings are defined in one place only. The script is
+  # idempotent, so re-running this service is a no-op.
+  #
+  # Talks to Storage through caddy rather than storage:5000 directly, because
+  # supabase-js appends /storage/v1 to the URL it is given and caddy is what
+  # maps that prefix. storage-api runs its own migrations on boot, so the retry
+  # loop covers the window where it is listening but not yet serving.
+  storage-init:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: tools
+    restart: "no"
+    environment:
+      NEXT_PUBLIC_SUPABASE_URL: http://caddy:8000
+      SUPABASE_SECRET_KEY: ${SERVICE_ROLE_KEY}
+    command:
+      - sh
+      - -c
+      - |
+        for i in $$(seq 1 30); do
+          npx tsx scripts/create-covers-bucket.ts && exit 0
+          echo "storage not ready yet, retrying in 4s ($$i/30)"
+          sleep 4
+        done
+        echo "storage-init: gave up waiting for storage-api" >&2
+        exit 1
+    depends_on:
+      storage:
+        condition: service_started
+      caddy:
+        condition: service_started
+
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: runner
+      args:
+        # Build args, not runtime env: see the comment in docker/Dockerfile.
+        NEXT_PUBLIC_SUPABASE_URL: ${HUB_PUBLIC_URL}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${ANON_KEY}
+    restart: unless-stopped
+    environment:
+      # Same origin the browser uses — Caddy fronts app and Supabase together.
+      NEXT_PUBLIC_SUPABASE_URL: ${HUB_PUBLIC_URL}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${ANON_KEY}
+      SUPABASE_SECRET_KEY: ${SERVICE_ROLE_KEY}
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/postgres
+      DIRECT_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/postgres
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      auth:
+        condition: service_started
+      storage:
+        condition: service_started
+
+  caddy:
+    image: caddy:${CADDY_IMAGE_TAG:-2.8-alpine}
+    restart: unless-stopped
+    # The ONLY published port in this stack. HUB_BIND_ADDR pins it to one
+    # interface — set it to your LAN IP to refuse connections arriving on any
+    # other. See docs/deploy-self-hosted.md for why this alone is not the whole
+    # story (Docker writes iptables rules directly and bypasses ufw).
+    ports:
+      - "${HUB_BIND_ADDR:-0.0.0.0}:${HUB_PORT:-8000}:8000"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      app:
+        condition: service_started
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    networks:
+      - default
+volumes:
+  db-data:
+  storage-data:
+  caddy-data:
+  caddy-config:

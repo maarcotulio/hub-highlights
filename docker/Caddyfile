@@ -1,0 +1,44 @@
+# Single origin for the whole stack.
+#
+# The app and the Supabase services are served under ONE hostname, so
+# NEXT_PUBLIC_SUPABASE_URL is simply the address you type in the browser. That
+# removes a whole class of self-hosting bug (app on one origin, Supabase on
+# another, CSP naming a third) and leaves exactly one URL to remember, to put
+# in the KOReader plugin, and to keep stable.
+#
+# `auto_https off` because this listens on plain HTTP for a LAN deployment —
+# no certificate authority issues for 192.168.x.x. See docs/deploy-self-hosted.md
+# for what that costs and how to move to HTTPS later.
+
+{
+	auto_https off
+	admin off
+}
+
+:8000 {
+	# GoTrue and storage-api both serve from their own root; Kong strips these
+	# prefixes in Supabase's own stack, so we do the same here.
+	handle /auth/v1/* {
+		uri strip_prefix /auth/v1
+		reverse_proxy auth:9999
+	}
+
+	handle /storage/v1/* {
+		uri strip_prefix /storage/v1
+		reverse_proxy storage:5000
+	}
+
+	# Everything else is the Next.js app. Note what is deliberately absent:
+	# there is no /rest/v1 route, because PostgREST is not part of this stack —
+	# the app talks to Postgres through Prisma and never through the Data API.
+	handle {
+		reverse_proxy app:3000
+	}
+
+	encode gzip
+
+	log {
+		output stderr
+		format console
+	}
+}
