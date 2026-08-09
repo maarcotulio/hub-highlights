@@ -78,22 +78,6 @@ export default async function DashboardPage() {
           };
         })();
 
-  if (books.length === 0) {
-    return (
-      <div className="w-full max-w-4xl mx-auto px-6 py-12">
-        <EmptyState
-          title="Your shelf is empty"
-          description={"Import a KOReader metadata.<ext>.lua file to bring your highlights into one place."}
-          action={
-            <div className="mt-1 w-full max-w-md">
-              <Dropzone />
-            </div>
-          }
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="w-full max-w-4xl mx-auto px-6 py-12">
       <div className="flex justify-between items-end mb-7 gap-4 flex-wrap">
@@ -110,32 +94,46 @@ export default async function DashboardPage() {
           >
             ⚙ Settings
           </Link>
-          <ExportAllButton fileCount={books.length} />
+          {books.length > 0 && <ExportAllButton fileCount={books.length} />}
         </div>
       </div>
 
-      {readingOverview && <ReadingOverview {...readingOverview} />}
+      {books.length === 0 ? (
+        <EmptyState
+          title="Your shelf is empty"
+          description={"Import a KOReader metadata.<ext>.lua file to bring your highlights into one place."}
+          action={
+            <div className="mt-1 w-full max-w-md">
+              <Dropzone />
+            </div>
+          }
+        />
+      ) : (
+        <>
+          {readingOverview && <ReadingOverview {...readingOverview} />}
 
-      <div className="mb-8">
-        <Dropzone />
-      </div>
+          <div className="mb-8">
+            <Dropzone />
+          </div>
 
-      <div>
-        {books.map((book) => (
-          <BookRow
-            key={book.id}
-            book={{
-              id: book.id,
-              title: book.title,
-              author: book.author,
-              source: book.source,
-              status: book.status,
-              highlightCount: book._count.highlights,
-              coverUrl: book.coverUrl,
-            }}
-          />
-        ))}
-      </div>
+          <div>
+            {books.map((book) => (
+              <BookRow
+                key={book.id}
+                book={{
+                  id: book.id,
+                  title: book.title,
+                  author: book.author,
+                  source: book.source,
+                  status: book.status,
+                  highlightCount: book._count.highlights,
+                  coverUrl: book.coverUrl,
+                }}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
