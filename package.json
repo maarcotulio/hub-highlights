@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "deploy": "vercel deploy",
+    "deploy": "vercel deploy --prod",
     "parse:check": "tsx scripts/parse-check.ts",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",

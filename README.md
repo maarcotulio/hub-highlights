@@ -59,6 +59,79 @@ testing inbox for magic links at `http://127.0.0.1:54324`.
 Stop the stack with `npm run supabase:stop` when you're done (data persists across
 restarts; only `supabase stop --no-backup` or `supabase db reset` wipe it).
 
+## Deploying to production (Vercel + hosted Supabase)
+
+Everything above runs against the local Docker stack. To serve real users you need a
+hosted Supabase project and a Vercel deployment, in this order — each step depends on
+the previous one.
+
+**1. Provision Supabase**
+
+Create a project at [supabase.com](https://supabase.com), then link it locally:
+
+```bash
+supabase link --project-ref <project-ref>
+```
+
+Grab the connection strings and keys from Settings → API / Database:
+`DATABASE_URL` (pooled, port 6543, `?pgbouncer=true`), `DIRECT_URL` (direct, port
+5432), `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
+`SUPABASE_SECRET_KEY`.
+
+Both connection strings embed the database password. They're stable — the host and
+project-ref never change — and only break if you reset the database password from the
+dashboard, which invalidates every copy of the old URL (Vercel env vars, `.env`, CI)
+until you update them.
+
+**2. Prepare the database — before any deploy**
+
+```bash
+DIRECT_URL=<direct-hosted-url> npx prisma migrate deploy
+```
+
+This must run before the app is reachable. It includes the RLS lockdown migration
+(`20260809120001_lock_down_data_api`) that revokes `anon`/`authenticated` access to
+every table — without it, the publishable key (shipped in the browser bundle by
+design) can read `User.apiTokenHash` and everyone's highlights straight through the
+Supabase Data API.
+
+Then create the `covers` storage bucket by hand (Storage → New bucket): `public`,
+2MiB limit, `image/png`/`image/jpeg`. The `[storage.buckets.covers]` block in
+`supabase/config.toml` only applies to the local Docker stack — it has no effect on a
+hosted project.
+
+**3. Deploy to Vercel**
+
+Connect the repo (or `vercel deploy --prod`). Set these as Production environment
+variables *before* the first build — `NEXT_PUBLIC_*` values are baked in at build
+time:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SECRET_KEY`
+- `DATABASE_URL`
+
+`DIRECT_URL` and `SITE_URL` don't need to go to Vercel — the former is only used for
+migrations (run from your machine or CI), the latter is only read by
+`supabase/config.toml` for the local stack.
+
+**4. Close the loop on Auth — needs the domain from step 3**
+
+In the Supabase dashboard → Authentication → URL Configuration: set **Site URL** to
+the production domain and add it to **Redirect URLs**.
+
+Then configure custom SMTP (Authentication → Emails) with a real provider (Resend,
+Postmark, SendGrid, …) — Supabase's built-in email sending is rate-limited too low
+for real magic-link traffic.
+
+**5. Verify**
+
+- Sign in via magic link on the production URL.
+- Upload a `metadata.<ext>.lua` file and a cover through the KOReader webhook.
+- `curl` the REST endpoint with only the publishable key
+  (`https://<project-ref>.supabase.co/rest/v1/User`) — it must come back empty/denied,
+  confirming the RLS lockdown took effect.
+
 ## KOReader plugin
 
 For automatic background sync straight from your e-reader instead of manual uploads,
