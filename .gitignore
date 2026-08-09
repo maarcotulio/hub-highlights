@@ -50,7 +50,6 @@ next-env.d.ts
 /data
 
 /app/generated/prisma
-ROADMAP.md
 
 data/*.*
 **/__fixtures__/*.*

@@ -129,7 +129,3 @@ Exactly 3 file types are accepted, all from KOReader — there is no Kindle/`.tx
 - Every parser function must be pure (receives file content, returns an array of `RawHighlight`) and have a unit test with a real anonymized sample file in `/lib/parsers/__fixtures__`
 - API routes always validate the authenticated user before touching the database
 - Prisma migrations are always reviewed manually before applying in production (avoid `prisma db push` outside of local dev)
-
-## Roadmap reference
-
-The full phase plan is in `ROADMAP.md` at the repo root. Before starting a new feature, check which phase it fits into.
