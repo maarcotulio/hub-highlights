@@ -26,7 +26,7 @@ export default async function DashboardPage() {
   const books = await prisma.book.findMany({
     where: { userId: dbUser.id },
     include: { _count: { select: { highlights: true } } },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ stats: { lastOpenAt: { sort: "desc", nulls: "last" } } }, { createdAt: "desc" }],
   });
 
   const totalHighlights = books.reduce((sum, b) => sum + b._count.highlights, 0);

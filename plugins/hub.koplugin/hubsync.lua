@@ -32,6 +32,28 @@ local HubCover = require("hubcover")
 
 local HubSync = {}
 
+-- After a connection-level failure, stay quiet for this long instead of
+-- retrying (and blocking the UI) on every periodic tick / doc close. Manual
+-- "Force sync" always bypasses this.
+local UNREACHABLE_COOLDOWN_SEC = 15 * 60
+
+function HubSync.isInCooldown(settings)
+    local last = settings:readSetting("last_unreachable_at")
+    return last ~= nil and (os.time() - last) < UNREACHABLE_COOLDOWN_SEC
+end
+
+function HubSync.recordUnreachable(settings)
+    settings:saveSetting("last_unreachable_at", os.time())
+    settings:flush()
+end
+
+function HubSync.clearUnreachable(settings)
+    if settings:readSetting("last_unreachable_at") then
+        settings:saveSetting("last_unreachable_at", nil)
+        settings:flush()
+    end
+end
+
 local function buildMonthCoverQueue()
     local ok, ReadHistory = pcall(require, "readhistory")
     if not ok or not ReadHistory or not ReadHistory.hist then return {} end
@@ -155,13 +177,20 @@ function HubSync.run(settings, mode)
         return
     end
 
+    if mode == "periodic" and HubSync.isInCooldown(settings) then
+        return
+    end
+
     local client = HubClient:new{ server_url = server_url, api_token = api_token }
     local cache = settings:readSetting("uploaded_files", {})
 
     local function finishSync(uploaded, failed, covers_uploaded, unreachable)
         settings:saveSetting("uploaded_files", cache)
         settings:flush()
-        if not unreachable then
+        if unreachable then
+            HubSync.recordUnreachable(settings)
+        else
+            HubSync.clearUnreachable(settings)
             client:heartbeat()
         end
 

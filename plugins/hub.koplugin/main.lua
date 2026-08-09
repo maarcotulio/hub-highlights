@@ -102,6 +102,7 @@ function Hub:onCloseDocument()
     local api_token = self.settings:readSetting("api_token")
     if not server_url or server_url == "" or not api_token or api_token == "" then return end
     if not NetworkMgr:isOnline() then return end
+    if HubSync.isInCooldown(self.settings) then return end
 
     local ok_md5, md5 = pcall(util.partialMD5, filepath)
     if not ok_md5 or not md5 then return end
@@ -110,9 +111,14 @@ function Hub:onCloseDocument()
     if not png_path then return end
 
     local client = HubClient:new{ server_url = server_url, api_token = api_token }
-    local ok = client:uploadCover(md5, png_path)
+    local ok, _, http_code = client:uploadCover(md5, png_path)
     if not ok then
         logger.dbg("Hub: onCloseDocument cover upload failed for", filepath)
+        if http_code == nil then
+            HubSync.recordUnreachable(self.settings)
+        end
+    else
+        HubSync.clearUnreachable(self.settings)
     end
     os.remove(png_path)
 end
@@ -158,7 +164,7 @@ end
 
 function Hub:intervalMenuItems()
     local items = {}
-    for _, minutes in ipairs(INTERVAL_OPTIONS_MIN) do
+    for _idx, minutes in ipairs(INTERVAL_OPTIONS_MIN) do
         table.insert(items, {
             text = T(_("Every %1 minutes"), minutes),
             keep_menu_open = true,
@@ -178,7 +184,7 @@ end
 function Hub:addToMainMenu(menu_items)
     menu_items.hub = {
         text = _("Highlights Hub"),
-        sorting_hint = "more_tools",
+        sorting_hint = "network",
         sub_item_table = {
             {
                 text = _("Force sync"),
