@@ -14,6 +14,7 @@ local LuaSettings = require("luasettings")
 local NetworkMgr = require("ui/network/manager")
 local UIManager = require("ui/uimanager")
 local MultiInputDialog = require("ui/widget/multiinputdialog")
+local InfoMessage = require("ui/widget/infomessage")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local util = require("util")
 local logger = require("logger")
@@ -53,18 +54,30 @@ end
 -- via USB instead of typed on-device. Present and non-empty .env values win
 -- over whatever's already in settings; missing ones just leave it as-is, so
 -- the Settings dialog still works for anyone not using a .env file.
+--
+-- The file is deleted once consumed. It has served its purpose the moment the
+-- values reach plugin settings, and leaving it behind kept a second copy of
+-- the API token in clear text on a device that mounts as USB mass storage —
+-- readable by anyone who plugs in a cable, with no password prompt anywhere.
 function Hub:loadEnvFile()
     if not self.path then return end
-    local env = HubEnv.load(self.path .. "/.env")
+    local env_path = self.path .. "/.env"
+    local env = HubEnv.load(env_path)
     if not env then return end
 
     if env.SERVER_URL and env.SERVER_URL ~= "" then
-        self.settings:saveSetting("server_url", env.SERVER_URL:gsub("/*$", ""))
+        local server_url = env.SERVER_URL:gsub("/*$", "")
+        if HubClient.isValidServerUrl(server_url) then
+            self.settings:saveSetting("server_url", server_url)
+        else
+            logger.warn("Hub: ignoring non-https SERVER_URL from .env")
+        end
     end
     if env.API_TOKEN and env.API_TOKEN ~= "" then
         self.settings:saveSetting("api_token", env.API_TOKEN)
     end
     self.settings:flush()
+    os.remove(env_path)
 end
 
 function Hub:scheduleNextSync()
@@ -149,7 +162,17 @@ function Hub:showSettingsDialog()
                     text = _("Save"),
                     callback = function()
                         local fields = self.settings_dialog:getFields()
-                        self.settings:saveSetting("server_url", fields[1]:gsub("/*$", ""))
+                        local server_url = fields[1]:gsub("/*$", "")
+                        -- Refuse http:// here rather than silently syncing the
+                        -- token in clear text over the device's Wi-Fi.
+                        if not HubClient.isValidServerUrl(server_url) then
+                            UIManager:show(InfoMessage:new{
+                                text = _("The server URL must start with https:// — the API token is sent with every request and would otherwise travel unencrypted."),
+                                timeout = 5,
+                            })
+                            return
+                        end
+                        self.settings:saveSetting("server_url", server_url)
                         self.settings:saveSetting("api_token", fields[2])
                         self.settings:flush()
                         UIManager:close(self.settings_dialog)

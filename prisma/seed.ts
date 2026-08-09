@@ -6,10 +6,13 @@ const adapter = new PrismaPg({ connectionString: process.env.DIRECT_URL });
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
+  // Email is no longer unique (authId is the identity), so this seeds against
+  // a fixed sentinel authId to stay idempotent across re-runs. The value is
+  // deliberately not a uuid, so it can never collide with a real Supabase sub.
   const user = await prisma.user.upsert({
-    where: { email: "demo@highlightshub.dev" },
+    where: { authId: "seed:demo" },
     update: {},
-    create: { email: "demo@highlightshub.dev" },
+    create: { authId: "seed:demo", email: "demo@highlightshub.dev" },
   });
 
   const book1 = await prisma.book.upsert({

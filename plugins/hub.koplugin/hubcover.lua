@@ -17,17 +17,26 @@ local HubCover = {}
 
 local MAX_W, MAX_H = 300, 450
 
+-- Per-call filename. A single shared path used to be enough, but two callers
+-- can be in flight at once: the cover backfill queue in hubsync.lua yields to
+-- UIManager between books, and onCloseDocument fires in those gaps. Sharing
+-- one file meant they could overwrite each other's PNG (uploading book A's
+-- cover under book B's md5) or os.remove the file the other was about to read.
+local tmp_counter = 0
+
 local function tmpPngPath()
     local cache_dir = DataStorage:getDataDir() .. "/cache"
     if not lfs.attributes(cache_dir, "mode") then
         lfs.mkdir(cache_dir)
     end
-    return cache_dir .. "/hub_cover_tmp.png"
+    tmp_counter = tmp_counter + 1
+    return string.format("%s/hub_cover_tmp_%d_%d.png", cache_dir, os.time(), tmp_counter)
 end
 
 -- Extracts filepath's cover, scaled down to a thumbnail, as a PNG on disk.
 -- Returns the temp file path, or nil if the format is unsupported or
--- extraction otherwise fails (never raises).
+-- extraction otherwise fails (never raises). The caller owns the returned
+-- file and is responsible for os.remove'ing it.
 function HubCover.extractCoverPng(filepath)
     local ok_open, document = pcall(function()
         return DocumentRegistry:openDocument(filepath)

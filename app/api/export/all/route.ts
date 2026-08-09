@@ -1,21 +1,14 @@
 import JSZip from "jszip";
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getSessionDbUser } from "@/lib/currentUser";
 import { prisma } from "@/lib/db";
 import { toObsidianMarkdown, toSafeFilename } from "@/lib/export/toObsidianMarkdown";
 
 export async function GET() {
-  const supabase = await createClient();
-  const { data, error: authError } = await supabase.auth.getUser();
-  if (authError || !data.user?.email) {
+  const dbUser = await getSessionDbUser();
+  if (!dbUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  const dbUser = await prisma.user.upsert({
-    where: { email: data.user.email },
-    update: {},
-    create: { email: data.user.email },
-  });
 
   const books = await prisma.book.findMany({
     where: { userId: dbUser.id },

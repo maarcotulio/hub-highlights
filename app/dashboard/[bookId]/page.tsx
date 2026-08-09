@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { requireUser } from "@/lib/supabase/auth";
+import { requireDbUser } from "@/lib/currentUser";
 import { prisma } from "@/lib/db";
 import { SourceBadge } from "@/components/ui/SourceBadge";
 import { BookStatusBadge } from "@/components/ui/BookStatusBadge";
@@ -16,12 +16,7 @@ export default async function BookDetailPage({
   params: Promise<{ bookId: string }>;
 }) {
   const { bookId } = await params;
-  const user = await requireUser();
-  const dbUser = await prisma.user.upsert({
-    where: { email: user.email! },
-    update: {},
-    create: { email: user.email! },
-  });
+  const dbUser = await requireDbUser();
 
   // The userId filter here is the authorization check (does this user own
   // this book), not just "is someone logged in" — a mismatch and a missing

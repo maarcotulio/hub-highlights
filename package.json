@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "deploy": "vercel deploy",
     "parse:check": "tsx scripts/parse-check.ts",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
@@ -42,6 +43,7 @@
     "tailwindcss": "^4",
     "tsx": "^4.23.11",
     "typescript": "^5",
+    "vercel": "^58.9.0",
     "vitest": "^4.1.10"
   }
 }

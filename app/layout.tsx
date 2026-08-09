@@ -1,14 +1,9 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { THEME_BOOTSTRAP_SCRIPT } from "@/lib/themeScript";
 import "./globals.css";
-
-const THEME_BOOTSTRAP_SCRIPT = `
-  try {
-    var theme = localStorage.getItem("theme");
-    if (theme) document.documentElement.dataset.theme = theme;
-  } catch (e) {}
-`;
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,7 +21,10 @@ export const metadata: Metadata = {
     "Import your KOReader highlights, unify them in one dashboard, and export them as Obsidian-flavored Markdown.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Set by proxy.ts, and matched by the 'nonce-...' source in the CSP it sends.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html
       lang="en"
@@ -34,7 +32,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }} />
       </head>
       <body className="min-h-full flex flex-col">
         <ThemeToggle />

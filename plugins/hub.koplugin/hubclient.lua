@@ -27,9 +27,22 @@ end
 -- stop retrying the same unreachable host instead of blocking the UI thread
 -- for one full timeout per remaining file. A numeric status_code (even a
 -- non-2xx one) means the server did respond, so only that one item failed.
+-- Rejects anything that isn't a plain https:// URL. Two reasons, both about
+-- the bearer token: over http:// it travels in clear text on whatever Wi-Fi
+-- the device is on, and a MITM there can also inject the redirect described
+-- below. Enforced here as well as at the settings/env entry points, since this
+-- is the last place before the token goes on the wire.
+function HubClient.isValidServerUrl(server_url)
+    return type(server_url) == "string" and server_url:match("^https://[^/]") ~= nil
+end
+
 function HubClient:request(method, path, body)
     if not self.server_url or self.server_url == "" or not self.api_token or self.api_token == "" then
         return false, "not_configured", nil
+    end
+    if not HubClient.isValidServerUrl(self.server_url) then
+        logger.warn("HubClient: refusing to send credentials to a non-https server URL")
+        return false, "insecure_url", nil
     end
 
     local sink = {}
@@ -40,6 +53,12 @@ function HubClient:request(method, path, body)
             ["Authorization"] = "Bearer " .. self.api_token,
         },
         sink = ltn12.sink.table(sink),
+        -- luasocket follows redirects by default, and its tredirect() carries
+        -- the original `headers` table over to the new location even when that
+        -- location is a different host — which would hand the Authorization
+        -- bearer token to whoever controls it. The Hub server never redirects,
+        -- so nothing legitimate is lost by refusing to follow them.
+        redirect = false,
     }
 
     if body then

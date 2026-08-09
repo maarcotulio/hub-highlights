@@ -28,6 +28,15 @@ Highlights Hub deployment):
   plugin's own settings; the on-device dialog still works afterwards if you'd rather
   change something without re-copying files.
 
+  The plugin **deletes the `.env` after reading it**, so the token doesn't linger in
+  clear text on a device that mounts as USB mass storage. Keep your filled-in copy on
+  your computer, and never commit it — the token grants full read/write access to your
+  Highlights Hub account.
+
+The server URL **must be `https://`**. The token is sent as a bearer header on every
+request, so over plain `http://` it would be readable by anyone on the same Wi-Fi; the
+plugin refuses to send it and tells you why.
+
 ## Where to find it
 
 **Settings (gear icon) → Network → Highlights Hub**. Inside:
@@ -41,12 +50,19 @@ Outside of "Force sync", the plugin also runs a periodic background sync (only w
 online, never prompts to connect) and opportunistically uploads a book's cover the
 moment you close it.
 
-## Known limitations
+## What gets uploaded
 
-⚠️ **Only finds files inside the configured KOReader home folder.** If your books are
-scattered in folders KOReader doesn't consider "home", they're skipped by this scan
+⚠️ **Every annotation file under your KOReader home folder.** The scan walks that whole
+tree recursively and uploads any `metadata.<ext>.lua` or `*.annotations.lua` it finds —
+it isn't limited to books you've opened recently. On a jailbroken Kindle the home folder
+is often `/mnt/us`, i.e. the entire storage. Worth knowing before installing on a shared
+device.
+
+The reverse also holds: books in folders KOReader doesn't consider "home" are skipped
 (the "Force sync" cover backfill is different — it uses `ReadHistory`, which tracks any
 file opened regardless of folder).
+
+## Known limitations
 
 If the plugin ever falls unreachable (server down, no route to it), it stays quiet for
 15 minutes after the first failed attempt instead of retrying — and blocking the UI —

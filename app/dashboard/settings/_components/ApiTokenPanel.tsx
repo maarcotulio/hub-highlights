@@ -4,33 +4,46 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 
 export function ApiTokenPanel({
-  token: initialToken,
+  hasToken,
   webhookUrl,
   lastSyncedLabel,
 }: {
-  token: string;
+  hasToken: boolean;
   webhookUrl: string;
   lastSyncedLabel: string;
 }) {
-  const [token, setToken] = useState(initialToken);
+  // Only ever holds a token this page just generated. The server stores a
+  // hash, so once this is cleared the value is unrecoverable — which is the
+  // point, and why the UI says so before the user navigates away.
+  const [token, setToken] = useState<string | null>(null);
+  const [tokenExists, setTokenExists] = useState(hasToken);
   const [copied, setCopied] = useState(false);
-  const [regenerating, setRegenerating] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleCopy() {
+    if (!token) return;
     await navigator.clipboard.writeText(token);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
 
-  async function handleRegenerate() {
-    if (regenerating) return;
-    setRegenerating(true);
-    const response = await fetch("/api/settings/token", { method: "POST" });
-    if (response.ok) {
+  async function handleGenerate() {
+    if (generating) return;
+    setGenerating(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/settings/token", { method: "POST" });
+      if (!response.ok) {
+        setError("Couldn't generate a token. Try again.");
+        return;
+      }
       const { apiToken } = (await response.json()) as { apiToken: string };
       setToken(apiToken);
+      setTokenExists(true);
+    } finally {
+      setGenerating(false);
     }
-    setRegenerating(false);
   }
 
   return (
@@ -60,19 +73,47 @@ export function ApiTokenPanel({
 
       <div className="flex flex-col gap-1.5">
         <span className="text-xs font-mono text-text-2">API TOKEN</span>
-        <div className="font-mono text-sm px-3.5 py-2.5 rounded-lg border border-border bg-surface break-all">
-          {token}
-        </div>
+        {token ? (
+          <>
+            <div className="font-mono text-sm px-3.5 py-2.5 rounded-lg border border-border bg-surface break-all">
+              {token}
+            </div>
+            <span className="text-xs text-text-2">
+              Copy it now — it&apos;s stored hashed and won&apos;t be shown again.
+            </span>
+          </>
+        ) : (
+          <div className="text-sm px-3.5 py-2.5 rounded-lg border border-dashed border-border text-text-2">
+            {tokenExists
+              ? "A token is active. It can't be displayed again — generate a new one if you've lost it."
+              : "No token yet. Generate one to connect the plugin."}
+          </div>
+        )}
       </div>
 
+      {error && <span className="text-sm text-danger">{error}</span>}
+
       <div className="flex gap-3">
-        <Button variant="secondary" onClick={handleCopy}>
-          {copied ? "Copied" : "Copy token"}
-        </Button>
-        <Button variant="ghost" onClick={handleRegenerate} disabled={regenerating}>
-          {regenerating ? "Regenerating…" : "Regenerate"}
+        {token && (
+          <Button variant="secondary" onClick={handleCopy}>
+            {copied ? "Copied" : "Copy token"}
+          </Button>
+        )}
+        <Button variant="ghost" onClick={handleGenerate} disabled={generating}>
+          {generating
+            ? "Generating…"
+            : tokenExists
+              ? "Generate new token"
+              : "Generate token"}
         </Button>
       </div>
+
+      {tokenExists && (
+        <div className="text-xs text-text-2 leading-relaxed">
+          Generating a new token immediately revokes the previous one — any device still
+          using it will stop syncing until you update it.
+        </div>
+      )}
     </div>
   );
 }

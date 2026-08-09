@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getSessionDbUser } from "@/lib/currentUser";
 import { prisma } from "@/lib/db";
 
 export async function PATCH(
@@ -7,17 +7,10 @@ export async function PATCH(
   { params }: { params: Promise<{ highlightId: string }> }
 ) {
   const { highlightId } = await params;
-  const supabase = await createClient();
-  const { data, error: authError } = await supabase.auth.getUser();
-  if (authError || !data.user?.email) {
+  const dbUser = await getSessionDbUser();
+  if (!dbUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  const dbUser = await prisma.user.upsert({
-    where: { email: data.user.email },
-    update: {},
-    create: { email: data.user.email },
-  });
 
   const body = await request.json().catch(() => null);
   const rawTags = body?.tags;

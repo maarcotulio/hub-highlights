@@ -62,10 +62,13 @@ Docker (Desktop w/ WSL integration, or Docker Engine in WSL) already running.
 
 ```prisma
 model User {
-  id         String   @id @default(uuid())
-  email      String   @unique
-  books      Book[]
-  createdAt  DateTime @default(now())
+  id           String    @id @default(uuid())
+  authId       String?   @unique   // Supabase Auth `sub` — the account identity
+  email        String              // mutable attribute, NOT the identity
+  apiTokenHash String?   @unique   // sha256 of the API token; plaintext never stored
+  lastSyncAt   DateTime?
+  books        Book[]
+  createdAt    DateTime  @default(now())
 }
 
 model Book {
@@ -129,3 +132,16 @@ Exactly 3 file types are accepted, all from KOReader — there is no Kindle/`.tx
 - Every parser function must be pure (receives file content, returns an array of `RawHighlight`) and have a unit test with a real anonymized sample file in `/lib/parsers/__fixtures__`
 - API routes always validate the authenticated user before touching the database
 - Prisma migrations are always reviewed manually before applying in production (avoid `prisma db push` outside of local dev)
+
+## Security invariants
+
+Do not regress these — each one closed a real finding:
+
+- **Resolve the user via `lib/currentUser.ts`**, never `prisma.user.upsert({ where: { email } })`. Identity is the Supabase Auth `sub` (`authId`); an email is mutable and re-registrable, so keying on it lets one account inherit another's library.
+- **Ownership is enforced in the `where` clause** (`findFirst({ where: { id, userId } })`), not by a separate check. A missing row and someone else's row must both 404.
+- **API tokens are stored as sha256 only** (`lib/apiToken.ts`). Nothing may re-display a token after generation.
+- **Request bodies are read through `readLimitedBody`**, never `request.arrayBuffer()` directly — untrusted `.sqlite3` files are loaded whole into sql.js's WASM heap.
+- **Cover content type comes from `sniffImageType`**, never from `?filename=`. The covers bucket is public.
+- **`?next=`-style redirects go through `safeNextPath`** (`lib/safeRedirect.ts`). A leading `/` is not a sufficient check.
+- **The Lua parser never evaluates** — it walks an allowlisted AST subset (`lib/parsers/koreader-lua.ts`).
+- **The KOReader plugin requires `https://`** and sets `redirect = false`, because luasocket forwards the `Authorization` header across a cross-host redirect.

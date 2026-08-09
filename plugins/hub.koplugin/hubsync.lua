@@ -170,6 +170,18 @@ function HubSync.run(settings, mode)
         return
     end
 
+    -- Caught here as well as in HubClient so the periodic sync doesn't retry a
+    -- URL it will never be allowed to use, and so "Force sync" explains why.
+    if not HubClient.isValidServerUrl(server_url) then
+        if mode == "forced" then
+            UIManager:show(InfoMessage:new{
+                text = _("The server URL must start with https:// — the API token is sent with every request and would otherwise travel unencrypted."),
+                timeout = 5,
+            })
+        end
+        return
+    end
+
     if not NetworkMgr:isOnline() then
         if mode == "forced" then
             UIManager:show(InfoMessage:new{ text = _("No internet connection."), timeout = 3 })

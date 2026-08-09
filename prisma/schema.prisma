@@ -11,12 +11,22 @@ datasource db {
 }
 
 model User {
-  id         String    @id @default(uuid())
-  email      String    @unique
-  apiToken   String?   @unique
-  lastSyncAt DateTime?
-  books      Book[]
-  createdAt  DateTime  @default(now())
+  id String @id @default(uuid())
+
+  // The Supabase Auth `sub`. This — not the email — is the account identity:
+  // an email can be changed by its owner, and a released address can later be
+  // registered by someone else, either of which would silently hand one
+  // person's library to another if we keyed on it. Nullable only so rows
+  // created before this column existed can be adopted on first sign-in.
+  authId String? @unique
+  email  String
+
+  // sha256 of the API token. The plaintext is shown once at generation and
+  // never stored, so a database read can't be replayed against the webhooks.
+  apiTokenHash String?   @unique
+  lastSyncAt   DateTime?
+  books        Book[]
+  createdAt    DateTime  @default(now())
 }
 
 model Book {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireUser } from "@/lib/supabase/auth";
+import { requireDbUser } from "@/lib/currentUser";
 import { prisma } from "@/lib/db";
 import { BookRow } from "@/components/ui/BookRow";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -16,12 +16,7 @@ import {
 } from "@/lib/readingStats";
 
 export default async function DashboardPage() {
-  const user = await requireUser();
-  const dbUser = await prisma.user.upsert({
-    where: { email: user.email! },
-    update: {},
-    create: { email: user.email! },
-  });
+  const dbUser = await requireDbUser();
 
   const books = await prisma.book.findMany({
     where: { userId: dbUser.id },

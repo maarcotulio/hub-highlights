@@ -1,13 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
-import { prisma } from "@/lib/db";
+import { resolveDbUser } from "@/lib/currentUser";
+import { safeNextPath } from "@/lib/safeRedirect";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
   const token_hash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
-  const next = searchParams.get("next") ?? "/dashboard";
+  const next = safeNextPath(searchParams.get("next"));
 
   if (token_hash && type) {
     const supabase = await createClient();
@@ -15,15 +16,10 @@ export async function GET(request: NextRequest) {
 
     if (!error) {
       const { data } = await supabase.auth.getUser();
-      const email = data.user?.email;
 
-      if (email) {
+      if (data.user) {
         try {
-          await prisma.user.upsert({
-            where: { email },
-            update: {},
-            create: { email },
-          });
+          await resolveDbUser(data.user);
         } catch (err) {
           console.error("Failed to provision User row after sign-in:", err);
           return NextResponse.redirect(
