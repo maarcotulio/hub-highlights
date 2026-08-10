@@ -23,11 +23,16 @@ export function ExportAllButton({ fileCount }: { fileCount: number }) {
   }
 
   if (state === "done") {
-    return <Toast message={`highlights-hub-export.zip — ${fileCount} files ready`} />;
+    return <Toast message={`highlights-hub-export.zip — ${fileCount} books ready (including archived)`} />;
   }
 
   return (
-    <Button variant="secondary" onClick={handleClick} disabled={state === "exporting"}>
+    <Button
+      variant="secondary"
+      onClick={handleClick}
+      disabled={state === "exporting"}
+      title="Export all books, including archived books"
+    >
       {state === "exporting" ? "↻ Building archive…" : "↓ Export all (.zip)"}
     </Button>
   );

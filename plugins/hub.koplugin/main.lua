@@ -11,18 +11,16 @@ still fires when reading.
 
 local DataStorage = require("datastorage")
 local LuaSettings = require("luasettings")
-local NetworkMgr = require("ui/network/manager")
 local UIManager = require("ui/uimanager")
 local MultiInputDialog = require("ui/widget/multiinputdialog")
 local InfoMessage = require("ui/widget/infomessage")
-local WidgetContainer = require("ui/widget/container/widgetcontainer")
-local util = require("util")
 local logger = require("logger")
-local _ = require("gettext")
+local WidgetContainer = require("ui/widget/container/widgetcontainer")
+-- Keep plugin UI text in English regardless of KOReader's selected language.
+local _ = function(message) return message end
 local T = require("ffi/util").template
 
 local HubClient = require("hubclient")
-local HubCover = require("hubcover")
 local HubEnv = require("hubenv")
 local HubSync = require("hubsync")
 
@@ -39,7 +37,12 @@ function Hub:init()
     self:loadEnvFile()
 
     self.periodic_task = function()
-        HubSync.run(self.settings, "periodic")
+        -- Keep the preference check in the callback as well as in the
+        -- scheduler: a timer may already be queued when the user turns auto
+        -- sync off.
+        if self:isAutomaticSyncEnabled() then
+            HubSync.run(self.settings, "periodic")
+        end
         self:scheduleNextSync()
     end
     self:scheduleNextSync()
@@ -80,8 +83,15 @@ function Hub:loadEnvFile()
     os.remove(env_path)
 end
 
+function Hub:isAutomaticSyncEnabled()
+    -- nil preserves the historical default for settings files created before
+    -- the toggle existed.
+    return self.settings:readSetting("auto_sync") ~= false
+end
+
 function Hub:scheduleNextSync()
     UIManager:unschedule(self.periodic_task)
+    if not self:isAutomaticSyncEnabled() then return end
     local interval_min = self.settings:readSetting("interval_min") or DEFAULT_INTERVAL_MIN
     UIManager:scheduleIn(interval_min * 60, self.periodic_task)
 end
@@ -99,41 +109,19 @@ function Hub:onResume()
 end
 
 function Hub:onNetworkConnected()
-    HubSync.run(self.settings, "periodic")
+    if self:isAutomaticSyncEnabled() then
+        HubSync.run(self.settings, "periodic")
+    end
 end
 
--- Captures the just-closed book's cover while its document is still open
--- (DocumentRegistry ref-counts by file, so this doesn't re-render anything)
--- and uploads it immediately if online. Cheap, opportunistic complement to
--- the this-month backfill "Force sync" does.
+-- Queue the just-closed book's cover. Extraction and HTTP happen in the
+-- serialized sync worker instead of blocking the reader callback. The worker
+-- persists this item so an offline close is retried later.
 function Hub:onCloseDocument()
+    if not self:isAutomaticSyncEnabled() then return end
     local doc = self.ui and self.ui.document
     if not doc or not doc.file then return end
-    local filepath = doc.file
-
-    local server_url = self.settings:readSetting("server_url")
-    local api_token = self.settings:readSetting("api_token")
-    if not server_url or server_url == "" or not api_token or api_token == "" then return end
-    if not NetworkMgr:isOnline() then return end
-    if HubSync.isInCooldown(self.settings) then return end
-
-    local ok_md5, md5 = pcall(util.partialMD5, filepath)
-    if not ok_md5 or not md5 then return end
-
-    local png_path = HubCover.extractCoverPng(filepath)
-    if not png_path then return end
-
-    local client = HubClient:new{ server_url = server_url, api_token = api_token }
-    local ok, _, http_code = client:uploadCover(md5, png_path)
-    if not ok then
-        logger.dbg("Hub: onCloseDocument cover upload failed for", filepath)
-        if http_code == nil then
-            HubSync.recordUnreachable(self.settings)
-        end
-    else
-        HubSync.clearUnreachable(self.settings)
-    end
-    os.remove(png_path)
+    HubSync.enqueueCover(self.settings, doc.file)
 end
 
 function Hub:showSettingsDialog()
@@ -191,6 +179,9 @@ function Hub:intervalMenuItems()
         table.insert(items, {
             text = T(_("Every %1 minutes"), minutes),
             keep_menu_open = true,
+            enabled_func = function()
+                return self:isAutomaticSyncEnabled()
+            end,
             checked_func = function()
                 return (self.settings:readSetting("interval_min") or DEFAULT_INTERVAL_MIN) == minutes
             end,
@@ -210,10 +201,25 @@ function Hub:addToMainMenu(menu_items)
         sorting_hint = "network",
         sub_item_table = {
             {
-                text = _("Force sync"),
+                text = _("Sync now"),
                 keep_menu_open = true,
+                enabled_func = function()
+                    return not HubSync.isRunning()
+                end,
                 callback = function()
                     HubSync.run(self.settings, "forced")
+                end,
+            },
+            {
+                text = _("Automatic sync"),
+                keep_menu_open = true,
+                checked_func = function()
+                    return self:isAutomaticSyncEnabled()
+                end,
+                callback = function()
+                    self.settings:saveSetting("auto_sync", not self:isAutomaticSyncEnabled())
+                    self.settings:flush()
+                    self:scheduleNextSync()
                 end,
             },
             {

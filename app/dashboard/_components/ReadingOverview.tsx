@@ -27,6 +27,7 @@ export function ReadingOverview({
   heatmapCells,
   currentlyReading,
   finished,
+  archivedBookCount,
 }: {
   totalTimeLabel: string;
   bookCount: number;
@@ -36,6 +37,7 @@ export function ReadingOverview({
   heatmapCells: HeatmapCell[];
   currentlyReading: { title: string; pagesLabel: string; pct: number; opened: string }[];
   finished: { title: string; finishedLabel: string }[];
+  archivedBookCount: number;
 }) {
   return (
     <div className="mb-10">
@@ -45,7 +47,7 @@ export function ReadingOverview({
         <StatCard
           label="TOTAL TIME READ"
           value={totalTimeLabel}
-          sublabel={`across ${bookCount} book${bookCount === 1 ? "" : "s"}`}
+          sublabel={`reading history across ${bookCount} book${bookCount === 1 ? "" : "s"}${archivedBookCount > 0 ? " (including archived)" : ""}`}
         />
         <StatCard
           label="CURRENT STREAK"
@@ -59,8 +61,8 @@ export function ReadingOverview({
         />
       </div>
 
-      <div className="mb-8 overflow-x-auto">
-        <div className="flex justify-between items-baseline mb-2.5 gap-4 min-w-max">
+      <div className="mb-8 w-full">
+        <div className="flex justify-between items-baseline mb-2.5 gap-4 flex-wrap">
           <div className="text-sm text-text-2">Reading activity</div>
           <div className="flex items-center gap-1.5 text-[11px] font-mono text-text-2">
             LESS

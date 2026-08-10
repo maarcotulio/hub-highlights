@@ -3,7 +3,7 @@ Cover thumbnail extraction. `document:getCoverPageImage()` is implemented on
 every KOReader document backend (CreDocument/PdfDocument/DjvuDocument/
 PicDocument) and handles its own lazy loading — no separate render step
 needed. Used both right after closing a book (document already open, near
-zero extra cost) and for the this-month backfill on a forced sync (opens
+zero extra cost) and for the rolling 30-day backfill on a forced sync (opens
 each book briefly just to grab its cover).
 --]]--
 

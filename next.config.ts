@@ -1,10 +1,13 @@
 import type { NextConfig } from "next";
 
+const isVercelBuild = process.env.VERCEL === "1";
+
 const nextConfig: NextConfig = {
-  // Emits .next/standalone with a self-contained server and only the traced
-  // subset of node_modules, which is what docker/Dockerfile ships. Harmless on
-  // Vercel, which ignores it and uses its own build output.
-  output: "standalone",
+  // The Docker self-hosted image runs the traced standalone server. Vercel
+  // has its own Next adapter and expects the regular .next output; keeping
+  // standalone out of that build avoids its server-trace post-processing from
+  // looking for a trace file that Next may not leave in the expected location.
+  ...(isVercelBuild ? {} : { output: "standalone" }),
 };
 
 export default nextConfig;

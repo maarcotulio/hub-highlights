@@ -54,16 +54,29 @@ your reader shares Wi-Fi with people you don't trust, use `https://`.
 
 **Settings (gear icon) → Network → Highlights Hub**. Inside:
 
-- **Force sync** — uploads changed files right away, plus backfills covers for every
-  book read this calendar month.
+- **Sync now** — starts immediately with on-device progress feedback, uploads
+  changed files, and backfills covers for books read in the rolling last 30 days.
+  It works even when automatic sync is off.
+- **Automatic sync** — on by default. Turn it off to disable the timer, network
+  reconnect sync, resume sync, and cover uploads queued when a book closes. Only
+  an explicit **Sync now** sends data while it is off.
 - **Settings…** — server URL / API token.
-- **Sync interval** — how often the background sync runs (15/30/60 min).
+- **Sync interval** — how often the background sync runs (15/30/60 min), when
+  automatic sync is on.
 
-Outside of "Force sync", the plugin also runs a periodic background sync (only while
-online, never prompts to connect) and opportunistically uploads a book's cover the
-moment you close it.
+Automatic work is serialized: a timer, reconnect event, or close callback cannot
+start a second sync while one is running. Closing a book only queues its cover;
+the queue is processed without blocking the reader callback.
 
 ## What gets uploaded
+
+The plugin persists upload state per server. Metadata and statistics use mtime/size
+as a fast path and periodically verify a content fingerprint, so a changed file is
+not permanently hidden by preserved filesystem timestamps. Cache entries for deleted
+files are pruned. A cover is extracted and uploaded only after its book fingerprint
+and source mtime/size are not already confirmed for that server; failed covers remain
+pending and are retried. Clearing the plugin settings or using a new server causes a
+safe reconciliation upload rather than trusting another destination's cache.
 
 ⚠️ **Every annotation file under your KOReader home folder.** The scan walks that whole
 tree recursively and uploads any `metadata.<ext>.lua` or `*.annotations.lua` it finds —
@@ -72,12 +85,17 @@ is often `/mnt/us`, i.e. the entire storage. Worth knowing before installing on 
 device.
 
 The reverse also holds: books in folders KOReader doesn't consider "home" are skipped
-(the "Force sync" cover backfill is different — it uses `ReadHistory`, which tracks any
+(the "Sync now" cover backfill is different — it uses `ReadHistory`, which tracks any
 file opened regardless of folder).
 
 ## Known limitations
 
 If the plugin ever falls unreachable (server down, no route to it), it stays quiet for
 15 minutes after the first failed attempt instead of retrying — and blocking the UI —
-on every periodic tick or book close. "Force sync" always ignores that cooldown and
+on every periodic tick or book close. "Sync now" always ignores that cooldown and
 tries immediately.
+
+A Sync now reports started, cover progress, and a final result distinguishing no
+new work, successful uploads, partial failures, and an unreachable server. HTTP cover
+errors count as failures instead of being silently treated as success; a 404 remains
+pending until the corresponding book metadata is available.

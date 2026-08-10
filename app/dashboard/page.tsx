@@ -19,17 +19,18 @@ export default async function DashboardPage() {
   const dbUser = await requireDbUser();
 
   const books = await prisma.book.findMany({
-    where: { userId: dbUser.id },
+    where: { userId: dbUser.id, archivedAt: null },
     include: { _count: { select: { highlights: true } } },
     orderBy: [{ stats: { lastOpenAt: { sort: "desc", nulls: "last" } } }, { createdAt: "desc" }],
   });
 
   const totalHighlights = books.reduce((sum, b) => sum + b._count.highlights, 0);
+  const totalBookCount = await prisma.book.count({ where: { userId: dbUser.id } });
 
   const bookStats = await prisma.bookStats.findMany({
     where: { book: { userId: dbUser.id } },
     include: {
-      book: { select: { title: true } },
+      book: { select: { title: true, archivedAt: true } },
       pageStats: { select: { startTime: true, durationSec: true } },
     },
   });
@@ -47,7 +48,7 @@ export default async function DashboardPage() {
           const heatmapCells = buildHeatmapCells(dailyMinutes);
 
           const reading = bookStats
-            .filter((b) => b.totalReadPages < b.totalPages)
+            .filter((b) => b.book.archivedAt === null && b.totalReadPages < b.totalPages)
             .sort((a, b) => (b.lastOpenAt?.getTime() ?? 0) - (a.lastOpenAt?.getTime() ?? 0))
             .slice(0, 5)
             .map((b) => ({
@@ -58,7 +59,7 @@ export default async function DashboardPage() {
             }));
 
           const finished = bookStats
-            .filter((b) => b.totalReadPages >= b.totalPages)
+            .filter((b) => b.book.archivedAt === null && b.totalReadPages >= b.totalPages)
             .sort((a, b) => (b.lastOpenAt?.getTime() ?? 0) - (a.lastOpenAt?.getTime() ?? 0))
             .slice(0, 5)
             .map((b) => ({
@@ -75,6 +76,7 @@ export default async function DashboardPage() {
             heatmapCells,
             currentlyReading: reading,
             finished,
+            archivedBookCount: bookStats.filter((b) => b.book.archivedAt !== null).length,
           };
         })();
 
@@ -87,16 +89,35 @@ export default async function DashboardPage() {
             {books.length} books · {totalHighlights} highlights
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <Link
+            href="/dashboard/archive"
+            className="inline-flex items-center gap-2 text-sm font-medium px-5 py-2.5 rounded-lg text-text-2 hover:text-text transition-opacity"
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              className="w-4 h-4"
+            >
+              <path d="M3.5 6.5h13l-1 10h-11l-1-10Z" strokeLinejoin="round" />
+              <path d="M2.5 3.5h15v3h-15zM7.5 10h5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Archived
+          </Link>
           <Link
             href="/dashboard/settings"
             className="text-sm font-medium px-5 py-2.5 rounded-lg text-text-2 hover:text-text transition-opacity"
           >
             ⚙ Settings
           </Link>
-          {books.length > 0 && <ExportAllButton fileCount={books.length} />}
+          {totalBookCount > 0 && <ExportAllButton fileCount={totalBookCount} />}
         </div>
       </div>
+
+      {readingOverview && <ReadingOverview {...readingOverview} />}
 
       {books.length === 0 ? (
         <EmptyState
@@ -110,8 +131,6 @@ export default async function DashboardPage() {
         />
       ) : (
         <>
-          {readingOverview && <ReadingOverview {...readingOverview} />}
-
           <div className="mb-8">
             <Dropzone />
           </div>
@@ -124,10 +143,10 @@ export default async function DashboardPage() {
                   id: book.id,
                   title: book.title,
                   author: book.author,
-                  source: book.source,
                   status: book.status,
                   highlightCount: book._count.highlights,
                   coverUrl: book.coverUrl,
+                  archived: false,
                 }}
               />
             ))}

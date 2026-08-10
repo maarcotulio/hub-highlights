@@ -4,6 +4,15 @@ function toDateKey(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+function formatUtcDate(date: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+}
+
 export function aggregateDailyMinutes(
   pageStats: { startTime: Date; durationSec: number }[]
 ): Map<string, number> {
@@ -55,15 +64,25 @@ export function buildHeatmapCells(
   start.setUTCHours(0, 0, 0, 0);
   start.setUTCDate(start.getUTCDate() - (days - 1));
 
-  const values: number[] = [];
+  const values: { date: Date; dateKey: string; minutes: number | null }[] = [];
   for (let i = 0; i < days; i++) {
-    const d = new Date(start);
-    d.setUTCDate(start.getUTCDate() + i);
-    values.push(dailyMinutes.get(toDateKey(d)) ?? 0);
+    const date = new Date(start);
+    date.setUTCDate(start.getUTCDate() + i);
+    const dateKey = toDateKey(date);
+    values.push({
+      date,
+      dateKey,
+      minutes: dailyMinutes.has(dateKey) ? dailyMinutes.get(dateKey) ?? 0 : null,
+    });
   }
 
-  const max = Math.max(0, ...values);
-  return values.map((minutes) => ({ color: heatmapColor(levelFor(minutes, max)) }));
+  const max = Math.max(0, ...values.map(({ minutes }) => minutes ?? 0));
+  return values.map(({ date, dateKey, minutes }) => ({
+    dateKey,
+    dateLabel: formatUtcDate(date),
+    minutes,
+    color: heatmapColor(levelFor(minutes ?? 0, max)),
+  }));
 }
 
 export function formatReadTime(totalSeconds: number): string {

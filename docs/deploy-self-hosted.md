@@ -65,6 +65,25 @@ front of it. The practical route on a LAN is a domain you own with an A record p
 at the private IP, plus a DNS-01 challenge — that gets a trusted certificate without
 opening a single inbound port. Then set `HUB_PUBLIC_URL=https://...` and rebuild.
 
+### Build mode: `VERCEL`
+
+`next.config.ts` uses the `VERCEL` environment variable to choose the server output:
+
+- Vercel must build with `VERCEL=1`, which Vercel sets automatically. If you use a
+  custom CI job to build for Vercel, add `VERCEL=1` to that job's **build** environment.
+  Without it, the Vercel adapter may fail while looking for Next.js server trace files.
+- Self-hosted Docker must **not** set `VERCEL=1`. Leave `VERCEL` unset (or set it to
+  `0`) so Next.js produces `.next/standalone`, which `docker/Dockerfile` copies into
+  the runtime image. If your shell or CI exports `VERCEL=1`, unset it before building:
+  ```bash
+  unset VERCEL
+  docker compose -f docker/docker-compose.yml --env-file docker/.env up -d --build
+  ```
+
+Do not add `VERCEL=1` to `docker/.env` for a self-hosted deployment. The current
+`next.config.ts` already contains this conditional; older checkouts must update that
+file before building the Docker image.
+
 ---
 
 ## Setup

@@ -39,11 +39,13 @@ model Book {
   md5        String?
   coverUrl   String?
   status     BookStatus  @default(NOT_STARTED)
+  archivedAt DateTime?
   highlights Highlight[]
   stats      BookStats?
   createdAt  DateTime    @default(now())
 
   @@unique([userId, title, author, source])
+  @@index([userId, archivedAt])
 }
 
 model Highlight {

@@ -1,15 +1,19 @@
 --[[--
 Finds the files the Hub server ingests: each book's `metadata.<ext>.lua` (or
 standalone `<book>.<ext>.annotations.lua`) under the KOReader home folder, and
-the general `statistics.sqlite3`. Tracks per-file mtime/size in the caller's
-settings cache so unchanged books aren't re-uploaded every cycle.
+the general `statistics.sqlite3`. Tracks per-file mtime/size plus a cheap
+content fingerprint in the caller's settings cache so unchanged books aren't
+re-uploaded every cycle. The cache is scoped by server URL by hubsync.lua.
 --]]--
 
 local DataStorage = require("datastorage")
 local lfs = require("libs/libkoreader-lfs")
+local util = require("util")
 local logger = require("logger")
 
 local HubLibrary = {}
+
+local CONTENT_CHECK_INTERVAL_SEC = 24 * 60 * 60
 
 local function isMetadataOrAnnotations(name)
     return name:match("^metadata%.[^.]+%.lua$") ~= nil
@@ -17,12 +21,8 @@ local function isMetadataOrAnnotations(name)
 end
 
 -- Real e-reader libraries can be large, and some jailbreak setups have
--- symlinks that loop back on themselves (e.g. a shortcut folder pointing at
--- an ancestor) — recursing into those without protection can hang or crash
--- the app. MAX_DEPTH is a hard backstop regardless of symlinks; entries that
--- are themselves symlinks (checked via lfs.symlinkattributes, which — unlike
--- lfs.attributes — doesn't follow the link) are skipped outright rather than
--- recursed into, since that's the actual cycle vector.
+-- symlinks that loop back on themselves. Skip links rather than recursing into
+-- them and keep a hard depth limit as an additional backstop.
 local MAX_DEPTH = 20
 
 local function scanDir(dir, results, depth)
@@ -52,8 +52,7 @@ local function scanDir(dir, results, depth)
 end
 
 -- Recursively walks the KOReader home folder for every metadata/annotations
--- file. Falls back to no results (rather than raising) if the home folder
--- isn't configured yet, since this may run before the user has set one.
+-- file. Falls back to no results if the home folder isn't configured yet.
 function HubLibrary.findMetadataFiles()
     local ok, filemanagerutil = pcall(require, "apps/filemanager/filemanagerutil")
     local home = ok and filemanagerutil.getHomeFolder()
@@ -64,30 +63,108 @@ function HubLibrary.findMetadataFiles()
     return results
 end
 
--- Returns { {path=, filename=, mtime=, size=}, ... } for files that are new
--- or changed since the last successful upload recorded in `cache`
--- (`{ [path] = {mtime=, size=} }`, persisted by the caller in plugin settings).
+local function fingerprint(path)
+    local ok, value = pcall(util.partialMD5, path)
+    if ok and value then return value end
+    logger.dbg("HubLibrary: could not fingerprint", path, value)
+    return nil
+end
+
+local function makeEntry(path, filename, attr, cached, changed)
+    local entry = {
+        path = path,
+        filename = filename or path:match("([^/]+)$") or path,
+        mtime = attr.modification,
+        size = attr.size,
+    }
+
+    -- A changed stat always gets a new fingerprint after the upload. Keeping
+    -- this on the entry means markUploaded can persist it only after 2xx.
+    if changed then
+        entry.content_md5 = fingerprint(path)
+        return entry, true
+    end
+
+    -- mtime + size remains the cheap fast path. Once a day, verify content so
+    -- an editor/device that preserves both values cannot leave stale data in
+    -- the server forever. Old cache entries are fingerprinted once as well,
+    -- without forcing a re-upload.
+    local now = os.time()
+    if cached and cached.content_md5
+        and cached.content_checked_at
+        and now - cached.content_checked_at < CONTENT_CHECK_INTERVAL_SEC then
+        return nil, false
+    end
+
+    local current_fingerprint = fingerprint(path)
+    if current_fingerprint and cached and cached.content_md5
+        and current_fingerprint ~= cached.content_md5 then
+        entry.content_md5 = current_fingerprint
+        return entry, true
+    end
+
+    if cached then
+        cached.content_md5 = current_fingerprint or cached.content_md5
+        cached.content_checked_at = now
+    end
+    return nil, false
+end
+
+-- Returns { {path=, filename=, mtime=, size=, content_md5=}, ... }, number
+-- of unchanged files. `cache` is the cache for one destination server.
 function HubLibrary.scanChangedFiles(cache)
+    cache = cache or {}
     local changed = {}
+    local unchanged = 0
+    local live = {}
     for _, path in ipairs(HubLibrary.findMetadataFiles()) do
+        live[path] = true
         local attr = lfs.attributes(path)
         if attr then
             local cached = cache[path]
-            if not cached or cached.mtime ~= attr.modification or cached.size ~= attr.size then
-                table.insert(changed, {
-                    path = path,
-                    filename = path:match("([^/]+)$") or path,
-                    mtime = attr.modification,
-                    size = attr.size,
-                })
+            local same_stat = cached
+                and cached.mtime == attr.modification
+                and cached.size == attr.size
+            local entry, is_changed = makeEntry(path, nil, attr, cached, not same_stat)
+            if is_changed then
+                table.insert(changed, entry)
+            else
+                unchanged = unchanged + 1
             end
         end
     end
-    return changed
+
+    -- Do not retain cache records for deleted books/annotations. This also
+    -- bounds settings-file growth after a library is reorganized.
+    for path in pairs(cache) do
+        if not live[path] and not lfs.attributes(path) then
+            cache[path] = nil
+        end
+    end
+
+    return changed, unchanged
+end
+
+-- Builds the same cache-aware entry for statistics.sqlite3, which is outside
+-- the home-folder metadata scan.
+function HubLibrary.changedFileEntry(path, filename, cache)
+    local attr = lfs.attributes(path)
+    if not attr then return nil, false end
+    cache = cache or {}
+    local cached = cache[path]
+    local same_stat = cached
+        and cached.mtime == attr.modification
+        and cached.size == attr.size
+    return makeEntry(path, filename, attr, cached, not same_stat)
 end
 
 function HubLibrary.markUploaded(cache, entry)
-    cache[entry.path] = { mtime = entry.mtime, size = entry.size }
+    cache[entry.path] = {
+        mtime = entry.mtime,
+        size = entry.size,
+        content_md5 = entry.content_md5,
+        content_checked_at = os.time(),
+    }
 end
 
 -- Same path statistics.koplugin itself uses for its own db, and what

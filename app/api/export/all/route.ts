@@ -10,6 +10,8 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Export all includes archived books so archiving never causes a user's
+  // highlights to disappear from the export.
   const books = await prisma.book.findMany({
     where: { userId: dbUser.id },
     include: { highlights: { orderBy: { highlightedAt: "asc" } } },

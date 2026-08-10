@@ -44,6 +44,17 @@ describe("buildHeatmapCells", () => {
     expect(cells).toHaveLength(30);
   });
 
+  it("returns UTC date and minutes metadata for every cell", () => {
+    const today = new Date("2026-03-05T00:00:00Z");
+    const daily = new Map([["2026-03-04", 20.5]]);
+    const cells = buildHeatmapCells(daily, 3, today);
+
+    expect(cells.map((cell) => cell.dateKey)).toEqual(["2026-03-03", "2026-03-04", "2026-03-05"]);
+    expect(cells[0].dateLabel).toBe("Mar 3, 2026");
+    expect(cells[0].minutes).toBeNull();
+    expect(cells[1].minutes).toBe(20.5);
+  });
+
   it("maps the busiest day to full accent intensity and empty days to surface-2", () => {
     const today = new Date("2026-03-05T00:00:00Z");
     const daily = new Map([
