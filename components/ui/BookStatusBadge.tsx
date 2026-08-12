@@ -19,9 +19,11 @@ async function persistStatus(bookId: string, status: BookStatus): Promise<boolea
 export function BookStatusBadge({
   bookId,
   status: initialStatus,
+  className = "",
 }: {
   bookId: string;
   status: BookStatus;
+  className?: string;
 }) {
   const [status, setStatus] = useState(initialStatus);
   const meta = BOOK_STATUS_META[status];
@@ -42,7 +44,7 @@ export function BookStatusBadge({
     <button
       type="button"
       onClick={handleClick}
-      className="font-mono text-[11px] px-2.5 py-[5px] rounded-full whitespace-nowrap cursor-pointer border"
+      className={`font-mono text-[11px] px-2.5 py-[5px] rounded-full whitespace-nowrap cursor-pointer border ${className}`}
       style={{ color: meta.color, borderColor: meta.border, background: meta.background }}
       title="Click to change reading status"
     >

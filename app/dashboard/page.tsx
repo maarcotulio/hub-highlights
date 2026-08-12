@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Dropzone } from "@/components/ui/Dropzone";
 import { ExportAllButton } from "./_components/ExportAllButton";
 import { ReadingOverview } from "./_components/ReadingOverview";
+import { DashboardMobileMenu } from "./_components/DashboardMobileMenu";
 import {
   aggregateDailyMinutes,
   buildHeatmapCells,
@@ -81,7 +82,7 @@ export default async function DashboardPage() {
         })();
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-6 py-12">
+    <div className="w-full max-w-4xl mx-auto px-6 pt-20 pb-12 sm:pt-12">
       <div className="flex justify-between items-end mb-7 gap-4 flex-wrap">
         <div>
           <div className="text-[26px] font-semibold mb-1">Your books</div>
@@ -89,7 +90,8 @@ export default async function DashboardPage() {
             {books.length} books · {totalHighlights} highlights
           </div>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
+        <DashboardMobileMenu totalBookCount={totalBookCount} />
+        <div className="hidden min-[460px]:flex items-center gap-3 flex-wrap">
           <Link
             href="/dashboard/archive"
             className="inline-flex items-center gap-2 text-sm font-medium px-5 py-2.5 rounded-lg text-text-2 hover:text-text transition-opacity"
