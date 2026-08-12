@@ -39,11 +39,17 @@ export function BookRow({ book }: BookRowProps) {
           <div className="text-sm text-text-2 truncate">{book.author}</div>
         </div>
       </Link>
-      <div className="flex items-center gap-3 w-full sm:w-auto sm:shrink-0 pl-14 sm:pl-0">
-        <BookStatusBadge bookId={book.id} status={book.status} />
-        <span className="hidden sm:block font-mono text-sm text-text-2 w-28 text-right shrink-0">
-          {book.highlightCount} highlights
-        </span>
+      <div className="flex items-center justify-between gap-3 w-full sm:w-auto sm:shrink-0 sm:justify-start pl-14 sm:pl-0">
+        <div className="flex items-center gap-3">
+          <BookStatusBadge
+            bookId={book.id}
+            status={book.status}
+            className="hidden min-[400px]:inline-block"
+          />
+          <span className="font-mono text-sm text-text-2 sm:w-28 sm:text-right shrink-0">
+            {book.highlightCount} highlights
+          </span>
+        </div>
         <BookArchiveButton bookId={book.id} bookTitle={book.title} archived={archived} />
       </div>
     </div>

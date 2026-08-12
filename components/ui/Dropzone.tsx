@@ -81,14 +81,14 @@ export function Dropzone({
         }}
         onDragLeave={() => setState({ phase: "idle" })}
         onDrop={handleDrop}
-        className={`rounded-xl px-6 py-5.5 flex items-center justify-between gap-4 transition-colors ${
+        className={`rounded-xl px-6 py-5.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-colors ${
           state.phase === "drag-over"
             ? "border-[1.5px] border-accent bg-surface-2"
             : "border-[1.5px] border-dashed border-border bg-surface-2"
         }`}
       >
         <div className="flex items-center gap-3.5">
-          <div className="w-9.5 h-9.5 rounded-lg bg-surface border border-border flex items-center justify-center text-base">
+          <div className="hidden sm:flex w-9.5 h-9.5 rounded-lg bg-surface border border-border items-center justify-center text-base">
             {state.phase === "drag-over" ? "↓" : "↑"}
           </div>
           <div>
@@ -102,7 +102,11 @@ export function Dropzone({
             </div>
           </div>
         </div>
-        <Button variant="secondary" onClick={() => inputRef.current?.click()}>
+        <Button
+          variant="secondary"
+          className="w-full sm:w-auto"
+          onClick={() => inputRef.current?.click()}
+        >
           Browse files
         </Button>
         <input

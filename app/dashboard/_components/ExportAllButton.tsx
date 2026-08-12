@@ -7,7 +7,13 @@ import { downloadFromUrl } from "@/lib/download";
 
 type ExportState = "idle" | "exporting" | "done";
 
-export function ExportAllButton({ fileCount }: { fileCount: number }) {
+export function ExportAllButton({
+  fileCount,
+  className = "",
+}: {
+  fileCount: number;
+  className?: string;
+}) {
   const [state, setState] = useState<ExportState>("idle");
 
   async function handleClick() {
@@ -32,8 +38,9 @@ export function ExportAllButton({ fileCount }: { fileCount: number }) {
       onClick={handleClick}
       disabled={state === "exporting"}
       title="Export all books, including archived books"
+      className={className}
     >
-      {state === "exporting" ? "↻ Building archive…" : "↓ Export all (.zip)"}
+      {state === "exporting" ? "↻ Building archive…" : "↓ Export all"}
     </Button>
   );
 }

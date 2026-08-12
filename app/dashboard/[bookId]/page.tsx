@@ -28,11 +28,11 @@ export default async function BookDetailPage({
   if (!book) notFound();
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-6 py-12">
+    <div className="w-full max-w-4xl mx-auto px-6 pt-20 pb-12 sm:pt-12">
       <BackLink href="/dashboard" className="text-sm text-text-2 inline-block mb-5">
         ← All books
       </BackLink>
-      <div className="flex justify-between items-start gap-6 mb-2">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 sm:gap-6 mb-2">
         <div className="flex items-start gap-4">
           {book.coverUrl && (
             // eslint-disable-next-line @next/next/no-img-element
@@ -43,10 +43,10 @@ export default async function BookDetailPage({
             />
           )}
           <div>
-            <div className="text-[32px] font-semibold tracking-tight mb-1.5">
+            <div className="text-[26px] sm:text-[32px] font-semibold tracking-tight mb-1.5">
               {book.title}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <span className="text-[15px] text-text-2">{book.author}</span>
               <BookStatusBadge bookId={book.id} status={book.status} />
               <SourceBadge source={book.source} />

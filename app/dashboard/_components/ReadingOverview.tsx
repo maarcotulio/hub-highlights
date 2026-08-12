@@ -8,9 +8,19 @@ const LEGEND_SWATCHES = [
   "var(--accent)",
 ];
 
-function StatCard({ label, value, sublabel }: { label: string; value: string; sublabel: string }) {
+function StatCard({
+  label,
+  value,
+  sublabel,
+  className = "",
+}: {
+  label: string;
+  value: string;
+  sublabel: string;
+  className?: string;
+}) {
   return (
-    <div className="flex-1 border border-border rounded-xl px-6 py-5 bg-surface-2">
+      <div className={`border border-border rounded-xl px-6 py-5 bg-surface-2 min-[600px]:flex-1 ${className}`}>
       <div className="text-[11px] font-mono text-text-2 tracking-wide mb-1.5">{label}</div>
       <div className="text-[28px] font-semibold font-mono">{value}</div>
       <div className="text-[12.5px] text-text-2 mt-1">{sublabel}</div>
@@ -43,7 +53,7 @@ export function ReadingOverview({
     <div className="mb-10">
       <div className="text-lg font-semibold mb-5">Reading overview</div>
 
-      <div className="flex gap-5 mb-7 flex-wrap">
+          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-5 mb-7 min-[600px]:flex min-[600px]:flex-wrap">
         <StatCard
           label="TOTAL TIME READ"
           value={totalTimeLabel}
@@ -58,6 +68,7 @@ export function ReadingOverview({
           label="PAGES READ (ALL TIME)"
           value={pagesRead.toLocaleString("en-US")}
           sublabel={`of ${pagesTotal.toLocaleString("en-US")} total`}
+          className="min-[420px]:col-span-2 min-[600px]:col-span-1"
         />
       </div>
 
