@@ -20,7 +20,7 @@ function resetForm(email: string): FormData {
   return form;
 }
 
-describe("requestPasswordReset account enumeration", () => {
+describe("requestPasswordReset", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.checkRateLimit.mockResolvedValue(null);
@@ -43,5 +43,34 @@ describe("requestPasswordReset account enumeration", () => {
     expect(unknown).toEqual({ sent: true });
     expect(known).toEqual(unknown);
     consoleError.mockRestore();
+  });
+
+  it("validates the submitted email before spending a rate-limit budget", async () => {
+    const result = await requestPasswordReset({}, resetForm("not-an-email"));
+
+    expect(result).toEqual({ error: "That doesn't look like a valid email address." });
+    expect(mocks.checkRateLimit).not.toHaveBeenCalled();
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it("stops before the provider when reset requests are throttled", async () => {
+    mocks.checkRateLimit.mockResolvedValue("Too many attempts.");
+
+    const result = await requestPasswordReset({}, resetForm("reader@example.com"));
+
+    expect(result).toEqual({ error: "Too many attempts." });
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it("reports the provider's email-send throttle instead of claiming mail was sent", async () => {
+    mocks.resetPasswordForEmail.mockResolvedValue({
+      error: { code: "over_email_send_rate_limit" },
+    });
+
+    const result = await requestPasswordReset({}, resetForm("reader@example.com"));
+
+    expect(result).toEqual({
+      error: "Too many reset emails just went out. Wait a bit and try again.",
+    });
   });
 });

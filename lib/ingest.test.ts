@@ -1,5 +1,6 @@
 import { readFileSync } from "fs";
 import { join } from "path";
+import initSqlJs from "sql.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -56,6 +57,46 @@ function metadataLua(title: string, text: string, md5: string | null): string {
       [1] = { ["color"] = "yellow", ["text"] = ${JSON.stringify(text)}, ["pageno"] = 42 },
     },
   }`;
+}
+
+async function statisticsBytes(md5: string | null): Promise<ArrayBuffer> {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  try {
+    db.run(`
+      CREATE TABLE book (
+        id INTEGER PRIMARY KEY,
+        title,
+        authors,
+        series,
+        language,
+        md5,
+        pages,
+        highlights,
+        notes,
+        total_read_time,
+        total_read_pages,
+        last_open
+      );
+      CREATE TABLE page_stat_data (
+        id_book,
+        page,
+        start_time,
+        duration,
+        total_pages
+      );
+    `);
+    db.run(
+      `INSERT INTO book (
+        id, title, authors, md5, pages, highlights, notes,
+        total_read_time, total_read_pages, last_open
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [1, "A Stats Book", "Example Author", md5, 120, 0, 0, 600, 10, 1_786_464_000]
+    );
+    return Uint8Array.from(db.export()).buffer as ArrayBuffer;
+  } finally {
+    db.close();
+  }
 }
 
 describe("ingestUpload", () => {
@@ -197,6 +238,27 @@ describe("ingestUpload", () => {
     });
   });
 
+  it("imports multiple highlights for one book in a single persistence batch", async () => {
+    const multipleHighlights = `return {
+      ["doc_props"] = { ["title"] = "A Test Book", ["authors"] = "Example Author" },
+      ["annotations"] = {
+        [1] = { ["color"] = "yellow", ["text"] = "First quotation", ["pageno"] = 4 },
+        [2] = { ["color"] = "yellow", ["text"] = "Second quotation", ["pageno"] = 9 },
+      },
+    }`;
+
+    const result = await ingestUpload(
+      "user-1",
+      "metadata.epub.lua",
+      bytes(multipleHighlights)
+    );
+
+    expect(result).toMatchObject({ status: "success", imported: 2, skipped: 0 });
+    expect(mocks.createBook).toHaveBeenCalledOnce();
+    expect(mocks.createHighlights).toHaveBeenCalledOnce();
+    expect(mocks.createHighlights.mock.calls[0][0].data).toHaveLength(2);
+  });
+
   it("reports malformed Lua as corrupt without writing data", async () => {
     const result = await ingestUpload("user-1", "metadata.epub.lua", bytes("return {"));
 
@@ -207,6 +269,23 @@ describe("ingestUpload", () => {
     });
     expect(mocks.createBook).not.toHaveBeenCalled();
     expect(mocks.createHighlights).not.toHaveBeenCalled();
+  });
+
+  it("reports malformed SQLite as corrupt without opening a transaction", async () => {
+    const corrupt = new Uint8Array([0x6e, 0x6f, 0x74, 0x2d, 0x73, 0x71, 0x6c, 0x69, 0x74, 0x65]);
+
+    const result = await ingestUpload(
+      "user-1",
+      "statistics.sqlite3",
+      corrupt.buffer as ArrayBuffer
+    );
+
+    expect(result).toEqual({
+      status: "error",
+      reason: "corrupt",
+      fileName: "statistics.sqlite3",
+    });
+    expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
   it("rejects unsupported file types before touching persistence", async () => {
@@ -339,5 +418,49 @@ describe("ingestUpload", () => {
         totalReadPages: 180,
       },
     });
+  });
+
+  it("skips a statistics row with no checksum instead of creating an unstable book", async () => {
+    const result = await ingestUpload(
+      "user-1",
+      "statistics.sqlite3",
+      await statisticsBytes(null)
+    );
+
+    expect(result).toEqual({
+      status: "success",
+      kind: "stats",
+      booksUpdated: 0,
+      fileName: "statistics.sqlite3",
+    });
+    expect(mocks.findBook).not.toHaveBeenCalled();
+    expect(mocks.createBook).not.toHaveBeenCalled();
+    expect(mocks.upsertBookStats).not.toHaveBeenCalled();
+  });
+
+  it("updates book totals without manufacturing page sessions when none exist", async () => {
+    const result = await ingestUpload(
+      "user-1",
+      "statistics.sqlite3",
+      await statisticsBytes("stats-md5")
+    );
+
+    expect(result).toMatchObject({ status: "success", kind: "stats", booksUpdated: 1 });
+    expect(mocks.upsertBookStats).toHaveBeenCalledOnce();
+    expect(mocks.deletePageStats).toHaveBeenCalledOnce();
+    expect(mocks.createPageStats).not.toHaveBeenCalled();
+  });
+
+  it("reimports cumulative statistics without duplicating books", async () => {
+    const fileBuffer = Uint8Array.from(statisticsFixture).buffer as ArrayBuffer;
+
+    const first = await ingestUpload("user-1", "statistics.sqlite3", fileBuffer);
+    const second = await ingestUpload("user-1", "statistics.sqlite3", fileBuffer);
+
+    expect(first).toMatchObject({ status: "success", booksUpdated: 3 });
+    expect(second).toMatchObject({ status: "success", booksUpdated: 3 });
+    expect(mocks.createBook).toHaveBeenCalledTimes(3);
+    expect(mocks.upsertBookStats).toHaveBeenCalledTimes(6);
+    expect(mocks.deletePageStats).toHaveBeenCalledTimes(6);
   });
 });

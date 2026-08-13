@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   headers: vi.fn(),
-  forwardedFor: "203.0.113.10",
+  forwardedFor: "203.0.113.10" as string | null,
 }));
 
 vi.mock("server-only", () => ({}));
@@ -72,6 +72,15 @@ describe("authentication rate limits", () => {
     await expect(checkSignUpRateLimit()).resolves.toMatch(/^Too many attempts\./);
   });
 
+  it("uses one bounded fallback budget when the forwarded address is missing", async () => {
+    mocks.forwardedFor = null;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await expect(checkSignUpRateLimit()).resolves.toBeNull();
+    }
+
+    await expect(checkSignUpRateLimit()).resolves.toMatch(/^Too many attempts\./);
+  });
+
   it("keeps sign-in IP budgets isolated between client addresses", async () => {
     for (let account = 0; account < 3; account += 1) {
       for (let attempt = 0; attempt < 10; attempt += 1) {
@@ -133,5 +142,17 @@ describe("authentication rate limits", () => {
     vi.advanceTimersByTime(60 * 60 * 1000);
 
     await expect(checkPasswordResetRateLimit(email)).resolves.toBeNull();
+  });
+
+  it("uses singular minute wording during the final minute of a window", async () => {
+    const email = `one-minute-${sequence}@example.com`;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await checkPasswordResetRateLimit(email);
+    }
+    vi.advanceTimersByTime(59 * 60 * 1000);
+
+    await expect(checkPasswordResetRateLimit(email)).resolves.toBe(
+      "Too many attempts. Try again in 1 minute."
+    );
   });
 });

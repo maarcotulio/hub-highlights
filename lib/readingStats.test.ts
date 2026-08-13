@@ -67,6 +67,29 @@ describe("buildHeatmapCells", () => {
     expect(cells[2].color).toBe("color-mix(in oklch, var(--accent) 100%, var(--surface))");
   });
 
+  it("keeps the one-third and two-thirds intensity boundaries deterministic", () => {
+    const today = new Date("2026-03-06T00:00:00Z");
+    const daily = new Map([
+      ["2026-03-01", 10],
+      ["2026-03-02", 30],
+      ["2026-03-03", 30.1],
+      ["2026-03-04", 60],
+      ["2026-03-05", 60.1],
+      ["2026-03-06", 90],
+    ]);
+
+    const colors = buildHeatmapCells(daily, 6, today).map((cell) => cell.color);
+
+    expect(colors).toEqual([
+      "color-mix(in oklch, var(--accent) 30%, var(--surface))",
+      "color-mix(in oklch, var(--accent) 30%, var(--surface))",
+      "color-mix(in oklch, var(--accent) 60%, var(--surface))",
+      "color-mix(in oklch, var(--accent) 60%, var(--surface))",
+      "color-mix(in oklch, var(--accent) 100%, var(--surface))",
+      "color-mix(in oklch, var(--accent) 100%, var(--surface))",
+    ]);
+  });
+
   it("keeps every cell at level 0 when there is no data at all", () => {
     const cells = buildHeatmapCells(new Map(), 5, new Date("2026-03-05T00:00:00Z"));
     expect(cells.every((c) => c.color === "var(--surface-2)")).toBe(true);
@@ -97,5 +120,11 @@ describe("formatRelativeDate", () => {
 
   it("falls back to a short date beyond a month", () => {
     expect(formatRelativeDate(new Date(2026, 0, 1), now)).toBe("Jan 1, 2026");
+  });
+
+  it("falls back to a short date at exactly 30 days", () => {
+    expect(formatRelativeDate(new Date(2026, 1, 3, 12), now)).toBe(
+      "Feb 3, 2026"
+    );
   });
 });

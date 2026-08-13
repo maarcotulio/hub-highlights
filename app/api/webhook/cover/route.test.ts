@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { MAX_COVER_BYTES } from "@/lib/http/body";
 
 const mocks = vi.hoisted(() => ({
   authorizeWebhook: vi.fn(),
@@ -44,6 +45,13 @@ function coverRequest(
   );
 }
 
+async function expectError(response: Response, status: number) {
+  expect(response.status).toBe(status);
+  const body = await response.json();
+  expect(body).toEqual({ error: expect.any(String) });
+  expect(body.error.trim()).not.toBe("");
+}
+
 describe("POST /api/webhook/cover", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -60,12 +68,26 @@ describe("POST /api/webhook/cover", () => {
     mocks.updateBook.mockResolvedValue({ id: "book-1" });
   });
 
+  it("rejects an unauthenticated cover before persistence or storage", async () => {
+    mocks.authorizeWebhook.mockResolvedValue({
+      response: Response.json({ error: "Unauthorized" }, { status: 401 }),
+    });
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+    const response = await POST(coverRequest("cover.png", png));
+
+    await expectError(response, 401);
+    expect(mocks.findBook).not.toHaveBeenCalled();
+    expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.updateBook).not.toHaveBeenCalled();
+  });
+
   it("requires a book content checksum before querying persistence", async () => {
     const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
     const response = await POST(coverRequest("cover.png", png, { md5: "" }));
 
-    expect(response.status).toBe(400);
+    await expectError(response, 400);
     expect(mocks.findBook).not.toHaveBeenCalled();
     expect(mocks.upload).not.toHaveBeenCalled();
   });
@@ -109,10 +131,7 @@ describe("POST /api/webhook/cover", () => {
 
     const response = await POST(coverRequest("cover.png", html));
 
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({
-      error: "Body is not a PNG or JPEG image",
-    });
+    await expectError(response, 400);
     expect(mocks.upload).not.toHaveBeenCalled();
   });
 
@@ -121,24 +140,23 @@ describe("POST /api/webhook/cover", () => {
 
     const response = await POST(coverRequest("cover.png", png, { md5: "foreign-book-md5" }));
 
-    expect(response.status).toBe(404);
+    await expectError(response, 404);
     expect(mocks.upload).not.toHaveBeenCalled();
   });
 
   it("rejects an oversized cover before content sniffing or storage", async () => {
     const response = await POST(
-      coverRequest("cover.png", new Uint8Array(), { contentLength: String(2 * 1024 * 1024 + 1) })
+      coverRequest("cover.png", new Uint8Array(), { contentLength: String(MAX_COVER_BYTES + 1) })
     );
 
-    expect(response.status).toBe(413);
+    await expectError(response, 413);
     expect(mocks.upload).not.toHaveBeenCalled();
   });
 
   it("rejects an empty cover body", async () => {
     const response = await POST(coverRequest("cover.png", new Uint8Array()));
 
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: "Empty body" });
+    await expectError(response, 400);
     expect(mocks.upload).not.toHaveBeenCalled();
   });
 
@@ -148,7 +166,7 @@ describe("POST /api/webhook/cover", () => {
 
     const response = await POST(coverRequest("cover.jpg", jpeg));
 
-    expect(response.status).toBe(502);
+    await expectError(response, 502);
     expect(mocks.updateBook).not.toHaveBeenCalled();
   });
 });

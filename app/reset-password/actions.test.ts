@@ -108,6 +108,21 @@ describe("updatePassword", () => {
     expect(mocks.redirect).toHaveBeenLastCalledWith("/dashboard");
   });
 
+  it("finishes the successful reset when revoking other sessions fails", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.signOut.mockResolvedValue({
+      error: { code: "provider_unavailable", message: "revocation failed" },
+    });
+
+    await expect(updatePassword({}, passwordForm())).rejects.toThrow("redirect:/dashboard");
+
+    expect(mocks.clearRecoveryAccess).toHaveBeenCalledOnce();
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/", "layout");
+    expect(mocks.redirect).toHaveBeenCalledWith("/dashboard");
+    expect(consoleError).toHaveBeenCalledOnce();
+    consoleError.mockRestore();
+  });
+
   it("does not consume the grant when the password update fails", async () => {
     mocks.updateUser.mockResolvedValue({ error: { code: "same_password" } });
 

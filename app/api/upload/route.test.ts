@@ -20,6 +20,13 @@ function requestWithFile(file?: File, contentLength?: string): NextRequest {
   return { headers, formData: async () => formData } as NextRequest;
 }
 
+async function expectError(response: Response, status: number) {
+  expect(response.status).toBe(status);
+  const body = await response.json();
+  expect(body).toEqual({ error: expect.any(String) });
+  expect(body.error.trim()).not.toBe("");
+}
+
 describe("POST /api/upload", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -40,7 +47,7 @@ describe("POST /api/upload", () => {
 
     const response = await POST(request);
 
-    expect(response.status).toBe(401);
+    await expectError(response, 401);
     expect(formData).not.toHaveBeenCalled();
   });
 
@@ -50,7 +57,7 @@ describe("POST /api/upload", () => {
 
     const response = await POST(request);
 
-    expect(response.status).toBe(413);
+    await expectError(response, 413);
     expect(formData).not.toHaveBeenCalled();
   });
 
@@ -70,7 +77,7 @@ describe("POST /api/upload", () => {
   it("requires a file field", async () => {
     const response = await POST(requestWithFile());
 
-    expect(response.status).toBe(400);
+    await expectError(response, 400);
     expect(mocks.ingestUpload).not.toHaveBeenCalled();
   });
 
@@ -110,7 +117,7 @@ describe("POST /api/upload", () => {
 
     const response = await POST(requestWithFile(file));
 
-    expect(response.status).toBe(413);
+    await expectError(response, 413);
     expect(mocks.ingestUpload).not.toHaveBeenCalled();
   });
 });

@@ -73,7 +73,7 @@ try {
   };
 
   run(prisma, ["migrate", "deploy"], { env: databaseEnvironment });
-  run(vitest, ["run", "--config", "vitest.integration.config.ts"], {
+  run(vitest, ["run", "--config", "vitest.integration.config.mts"], {
     env: databaseEnvironment,
   });
 } finally {

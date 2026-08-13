@@ -39,6 +39,22 @@ function patchHighlight(highlightId: string, body: unknown) {
   return PATCH(request, { params: Promise.resolve({ highlightId }) });
 }
 
+function patchHighlightRaw(highlightId: string, body: string) {
+  const request = new NextRequest(`https://hub.example/api/highlights/${highlightId}`, {
+    method: "PATCH",
+    body,
+    headers: { "content-type": "application/json" },
+  });
+  return PATCH(request, { params: Promise.resolve({ highlightId }) });
+}
+
+async function expectError(response: Response, status: number) {
+  expect(response.status).toBe(status);
+  const body = await response.json();
+  expect(body).toEqual({ error: expect.any(String) });
+  expect(body.error.trim()).not.toBe("");
+}
+
 describe("PATCH /api/highlights/[highlightId]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -57,10 +73,28 @@ describe("PATCH /api/highlights/[highlightId]", () => {
     mocks.updateHighlight.mockImplementation(async ({ data }) => ({ ...ownedHighlight, ...data }));
   });
 
+  it("rejects an unauthenticated request before persistence", async () => {
+    mocks.getSessionDbUser.mockResolvedValue(null);
+
+    const response = await patchHighlight(ownedHighlight.id, { tags: [] });
+
+    await expectError(response, 401);
+    expect(mocks.findHighlight).not.toHaveBeenCalled();
+    expect(mocks.updateHighlight).not.toHaveBeenCalled();
+  });
+
   it("rejects a null JSON body without reaching persistence", async () => {
     const response = await patchHighlight(ownedHighlight.id, null);
 
-    expect(response.status).toBe(400);
+    await expectError(response, 400);
+    expect(mocks.findHighlight).not.toHaveBeenCalled();
+    expect(mocks.updateHighlight).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed JSON without reaching persistence", async () => {
+    const response = await patchHighlightRaw(ownedHighlight.id, "{");
+
+    await expectError(response, 400);
     expect(mocks.findHighlight).not.toHaveBeenCalled();
     expect(mocks.updateHighlight).not.toHaveBeenCalled();
   });
@@ -68,7 +102,7 @@ describe("PATCH /api/highlights/[highlightId]", () => {
   it("does not modify a highlight owned by another user", async () => {
     const response = await patchHighlight(foreignHighlight.id, { tags: ["stolen"] });
 
-    expect(response.status).toBe(404);
+    await expectError(response, 404);
     expect(mocks.updateHighlight).not.toHaveBeenCalled();
   });
 
@@ -94,7 +128,7 @@ describe("PATCH /api/highlights/[highlightId]", () => {
   it("rejects malformed tag collections before persistence", async () => {
     const response = await patchHighlight(ownedHighlight.id, { tags: ["valid", 42] });
 
-    expect(response.status).toBe(400);
+    await expectError(response, 400);
     expect(mocks.findHighlight).not.toHaveBeenCalled();
     expect(mocks.updateHighlight).not.toHaveBeenCalled();
   });

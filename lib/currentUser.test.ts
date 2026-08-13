@@ -23,7 +23,7 @@ vi.mock("@/lib/supabase/auth", () => ({ requireUser: mocks.requireUser }));
 
 import { getSessionDbUser, requireDbUser, resolveDbUser } from "./currentUser";
 
-function authUser(id: string, email: string): AuthUser {
+function authUser(id: string, email?: string): AuthUser {
   return { id, email } as AuthUser;
 }
 
@@ -59,6 +59,18 @@ describe("resolveDbUser", () => {
       where: { authId: existing.authId },
       update: { email: "new@example.com" },
       create: { authId: existing.authId, email: "new@example.com" },
+    });
+  });
+
+  it("keeps subject ownership when the provider omits an email", async () => {
+    const existing = { id: "db-user-1", authId: "auth-user-1", email: "reader@example.com" };
+    mocks.upsertUser.mockResolvedValue(existing);
+
+    await expect(resolveDbUser(authUser("auth-user-1"))).resolves.toEqual(existing);
+    expect(mocks.upsertUser).toHaveBeenCalledWith({
+      where: { authId: "auth-user-1" },
+      update: {},
+      create: { authId: "auth-user-1", email: "" },
     });
   });
 

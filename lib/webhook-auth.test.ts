@@ -18,6 +18,12 @@ function request(authorization?: string): NextRequest {
   return { headers } as NextRequest;
 }
 
+function rawAuthorizationRequest(authorization: string): NextRequest {
+  return {
+    headers: { get: () => authorization },
+  } as unknown as NextRequest;
+}
+
 describe("requireApiUser", () => {
   const token = "0123456789abcdef0123456789abcdef0123456789abcdef";
   const user = { id: "user-1", apiTokenHash: hashApiToken(token) };
@@ -48,7 +54,7 @@ describe("requireApiUser", () => {
     }
   );
 
-  it.each(["Basic credentials", "Bearer"])(
+  it.each(["Basic credentials", "Bearer", "Bearer   "])(
     "rejects malformed credentials even if a database digest happens to match: %s",
     async (authorization) => {
       mocks.findUser.mockResolvedValue(user);
@@ -56,6 +62,13 @@ describe("requireApiUser", () => {
       await expect(requireApiUser(request(authorization))).resolves.toBeNull();
     }
   );
+
+  it("rejects an all-whitespace bearer value before querying persistence", async () => {
+    mocks.findUser.mockResolvedValue(user);
+
+    await expect(requireApiUser(rawAuthorizationRequest("Bearer   "))).resolves.toBeNull();
+    expect(mocks.findUser).not.toHaveBeenCalled();
+  });
 
   it("never queries the database with the plaintext token", async () => {
     await requireApiUser(request(`Bearer ${token}`));

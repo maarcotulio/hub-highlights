@@ -23,6 +23,13 @@ function uploadRequest(filename: string | null, body: Uint8Array, contentLength?
   return new NextRequest(url, { method: "POST", body: requestBody, headers });
 }
 
+async function expectError(response: Response, status: number) {
+  expect(response.status).toBe(status);
+  const body = await response.json();
+  expect(body).toEqual({ error: expect.any(String) });
+  expect(body.error.trim()).not.toBe("");
+}
+
 describe("POST /api/webhook/upload", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -43,14 +50,14 @@ describe("POST /api/webhook/upload", () => {
 
     const response = await POST(uploadRequest("metadata.epub.lua", new Uint8Array([1])));
 
-    expect(response.status).toBe(401);
+    await expectError(response, 401);
     expect(mocks.ingestUpload).not.toHaveBeenCalled();
   });
 
   it("requires an explicit filename", async () => {
     const response = await POST(uploadRequest(null, new Uint8Array([1])));
 
-    expect(response.status).toBe(400);
+    await expectError(response, 400);
     expect(mocks.ingestUpload).not.toHaveBeenCalled();
   });
 
@@ -73,7 +80,7 @@ describe("POST /api/webhook/upload", () => {
       uploadRequest("statistics.sqlite3", new Uint8Array(), String(MAX_UPLOAD_BYTES + 1))
     );
 
-    expect(response.status).toBe(413);
+    await expectError(response, 413);
     expect(mocks.ingestUpload).not.toHaveBeenCalled();
   });
 

@@ -1,34 +1,20 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { lua, lauxlib, lualib, to_jsstring, to_luastring, type LuaState } from "fengari";
+import { LuaHarness, luaString } from "./luaHarness";
 
-let state: LuaState;
+let harness: LuaHarness;
 
 function runLua(source: string): void {
-  const status = lauxlib.luaL_dostring(state, to_luastring(source));
-  if (status === lua.LUA_OK) return;
-
-  const message = to_jsstring(lua.lua_tolstring(state, -1));
-  lua.lua_pop(state, 1);
-  throw new Error(message);
+  harness.run(source);
 }
 
 function luaBoolean(expression: string): boolean {
-  runLua(`__test_result = (${expression})`);
-  lua.lua_getglobal(state, to_luastring("__test_result"));
-  const result = Boolean(lua.lua_toboolean(state, -1));
-  lua.lua_pop(state, 1);
-  return result;
-}
-
-function luaString(value: string): string {
-  return JSON.stringify(value);
+  return harness.boolean(expression);
 }
 
 beforeAll(() => {
-  state = lauxlib.luaL_newstate();
-  lualib.luaL_openlibs(state);
+  harness = new LuaHarness();
 
   const hubClientSource = readFileSync(
     process.env.HUBCLIENT_LUA_PATH ?? join(__dirname, "..", "hub.koplugin", "hubclient.lua"),
@@ -117,7 +103,7 @@ beforeEach(() => {
 });
 
 afterAll(() => {
-  lua.lua_close(state);
+  harness.close();
 });
 
 describe("HubClient.isValidServerUrl", () => {

@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/supabase/session", () => ({ updateSession: mocks.updateSession }));
 
-import { proxy } from "./proxy";
+import { config, proxy } from "./proxy";
 
 describe("security header proxy", () => {
   beforeEach(() => {
@@ -31,5 +31,13 @@ describe("security header proxy", () => {
     expect(response.headers.get("content-security-policy")).toBe(requestPolicy);
     expect(response.headers.get("strict-transport-security")).toContain("max-age=63072000");
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+  });
+
+  it("runs for application requests while excluding immutable image and framework assets", () => {
+    expect(config).toEqual({
+      matcher: [
+        "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+      ],
+    });
   });
 });

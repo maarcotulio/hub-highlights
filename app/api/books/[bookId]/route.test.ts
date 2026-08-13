@@ -35,6 +35,13 @@ function patchBookRaw(bookId: string, body: string) {
   return PATCH(request, { params: Promise.resolve({ bookId }) });
 }
 
+async function expectError(response: Response, status: number) {
+  expect(response.status).toBe(status);
+  const body = await response.json();
+  expect(body).toEqual({ error: expect.any(String) });
+  expect(body.error.trim()).not.toBe("");
+}
+
 describe("PATCH /api/books/[bookId]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -48,10 +55,20 @@ describe("PATCH /api/books/[bookId]", () => {
     );
   });
 
+  it("rejects an unauthenticated request before persistence", async () => {
+    mocks.getSessionDbUser.mockResolvedValue(null);
+
+    const response = await patchBook(ownedBook.id, { status: "READING" });
+
+    await expectError(response, 401);
+    expect(mocks.findBook).not.toHaveBeenCalled();
+    expect(mocks.updateBook).not.toHaveBeenCalled();
+  });
+
   it.each([null, [], "status", 42])("rejects non-object JSON bodies: %j", async (body) => {
     const response = await patchBook(ownedBook.id, body);
 
-    expect(response.status).toBe(400);
+    await expectError(response, 400);
     expect(mocks.findBook).not.toHaveBeenCalled();
     expect(mocks.updateBook).not.toHaveBeenCalled();
   });
@@ -59,7 +76,7 @@ describe("PATCH /api/books/[bookId]", () => {
   it("rejects malformed JSON without reaching persistence", async () => {
     const response = await patchBookRaw(ownedBook.id, "{");
 
-    expect(response.status).toBe(400);
+    await expectError(response, 400);
     expect(mocks.findBook).not.toHaveBeenCalled();
     expect(mocks.updateBook).not.toHaveBeenCalled();
   });
@@ -68,15 +85,15 @@ describe("PATCH /api/books/[bookId]", () => {
     const neither = await patchBook(ownedBook.id, {});
     const both = await patchBook(ownedBook.id, { status: "READING", archived: true });
 
-    expect(neither.status).toBe(400);
-    expect(both.status).toBe(400);
+    await expectError(neither, 400);
+    await expectError(both, 400);
     expect(mocks.updateBook).not.toHaveBeenCalled();
   });
 
-  it("rejects unknown status values", async () => {
-    const response = await patchBook(ownedBook.id, { status: "DELETED" });
+  it.each(["DELETED", null, false, 42, [], {}])("rejects invalid status values: %j", async (status) => {
+    const response = await patchBook(ownedBook.id, { status });
 
-    expect(response.status).toBe(400);
+    await expectError(response, 400);
     expect(mocks.updateBook).not.toHaveBeenCalled();
   });
 
@@ -99,7 +116,7 @@ describe("PATCH /api/books/[bookId]", () => {
   it("rejects non-boolean archive values", async () => {
     const response = await patchBook(ownedBook.id, { archived: "true" });
 
-    expect(response.status).toBe(400);
+    await expectError(response, 400);
     expect(mocks.updateBook).not.toHaveBeenCalled();
   });
 

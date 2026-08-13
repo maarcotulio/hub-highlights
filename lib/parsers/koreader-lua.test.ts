@@ -293,6 +293,19 @@ describe("parseKoreaderMetadata", () => {
     );
   });
 
+  it.each([String.raw`\xG1`, String.raw`\x1G`, String.raw`\xGG`])(
+    "rejects non-hexadecimal digits in the Lua escape %s",
+    (escape) => {
+      const lua = String.raw`return {
+        annotations = {
+          { color = "yellow", text = "malformed:${escape}" },
+        },
+      }`;
+
+      expect(() => parseKoreaderMetadata(lua)).toThrow(/hexadecimal|hex digit/i);
+    }
+  );
+
   it("supports quote escapes and escaped physical line breaks", () => {
     const lua = String.raw`return {
       annotations = {
