@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 import { fileURLToPath } from "url";
 
 export default defineConfig({
@@ -8,5 +8,20 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    exclude: [...configDefaults.exclude, ".stryker-tmp/**"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json-summary", "html"],
+      reportsDirectory: "coverage",
+      include: [
+        "lib/**/*.ts",
+        "app/api/**/route.ts",
+        "app/**/actions.ts",
+        "app/auth/confirm/page.tsx",
+        "app/reset-password/page.tsx",
+        "proxy.ts",
+      ],
+      exclude: ["**/*.test.ts", "**/*.test.tsx"],
+    },
   },
 });

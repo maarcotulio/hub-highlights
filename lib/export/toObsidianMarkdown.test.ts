@@ -54,6 +54,14 @@ describe("toObsidianMarkdown", () => {
     expect(md).toContain('title: "A \\"Great\\" Book"');
   });
 
+  it("keeps line breaks in a title from injecting frontmatter fields", () => {
+    const md = toObsidianMarkdown(book({ title: "Reading Notes\nstatus: finished" }));
+    const frontmatter = md.split("---")[1];
+
+    expect(frontmatter).toContain('title: "Reading Notes\\nstatus: finished"');
+    expect(frontmatter.match(/^status:/gm)).toHaveLength(1);
+  });
+
   it("renders a highlight with chapter, location, and date in the callout header", () => {
     const md = toObsidianMarkdown(
       book({
@@ -88,6 +96,14 @@ describe("toObsidianMarkdown", () => {
     expect(withoutNote).not.toContain("**Note:**");
   });
 
+  it("keeps the note separated inside the same Markdown callout", () => {
+    const md = toObsidianMarkdown(
+      book({ highlights: [highlight({ text: "Quoted text.", note: "Reader note." })] })
+    );
+
+    expect(md).toContain("> Quoted text.\n>\n> **Note:** Reader note.");
+  });
+
   it("separates multiple highlights with a horizontal rule", () => {
     const md = toObsidianMarkdown(
       book({ highlights: [highlight({ text: "First." }), highlight({ text: "Second." })] })
@@ -115,9 +131,68 @@ describe("toObsidianMarkdown", () => {
     expect(md).toContain("#needs-more-thought");
   });
 
+  it("normalizes complex tags and drops tags with no safe characters", () => {
+    const md = toObsidianMarkdown(
+      book({
+        highlights: [
+          highlight({ tags: ["  multiple   words  ", "phase2", "!!!", "café"] }),
+        ],
+      })
+    );
+
+    expect(md).toContain("> [!quote] #multiple-words #phase2 #café\n> Quote.");
+  });
+
   it("omits the hashtag segment entirely when a highlight has no tags", () => {
     const md = toObsidianMarkdown(book({ highlights: [highlight({ chapter: "Roots", tags: [] })] }));
     expect(md).toContain("> [!quote] Roots\n");
+  });
+
+  it("quotes every line of multiline highlights and notes", () => {
+    const md = toObsidianMarkdown(
+      book({
+        highlights: [
+          highlight({
+            text: "First quoted line\nSecond quoted line",
+            note: "First note line\nSecond note line",
+          }),
+        ],
+      })
+    );
+
+    expect(md).toContain("> First quoted line\n> Second quoted line");
+    expect(md).toContain("> **Note:** First note line\n> Second note line");
+  });
+
+  it("preserves Unicode and Markdown-sensitive highlight content", () => {
+    const content = "A café insight 📚 with **emphasis**, [a link](https://example.com), and `code`.";
+
+    const md = toObsidianMarkdown(book({ highlights: [highlight({ text: content })] }));
+
+    expect(md).toContain(`> ${content}`);
+  });
+
+  it("keeps the caller-provided highlight ordering deterministic", () => {
+    const md = toObsidianMarkdown(
+      book({
+        highlights: [
+          highlight({ text: "Earlier highlight" }),
+          highlight({ text: "Later highlight" }),
+        ],
+      })
+    );
+
+    expect(md.indexOf("Earlier highlight")).toBeLessThan(md.indexOf("Later highlight"));
+  });
+
+  it("produces a minimal valid document for a book with no highlights", () => {
+    expect(
+      toObsidianMarkdown(
+        book({ title: "Untitled", author: null, status: "NOT_STARTED", highlights: [] })
+      )
+    ).toBe(
+      '---\ntitle: "Untitled"\nsource: koreader\ntags:\n  - highlights\nstatus: not-started\n---\n\n# Untitled\n\n\n'
+    );
   });
 });
 
@@ -128,5 +203,9 @@ describe("toSafeFilename", () => {
 
   it("falls back to Untitled when the sanitized title is empty", () => {
     expect(toSafeFilename("///???")).toBe("Untitled");
+  });
+
+  it("collapses whitespace while preserving safe Unicode", () => {
+    expect(toSafeFilename("  The   Café   Reader 📚  ")).toBe("The Café Reader 📚");
   });
 });

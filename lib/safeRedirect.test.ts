@@ -54,6 +54,23 @@ describe("safeNextPath", () => {
     expect(safeNextPath(["/a", "/b"])).toBe("/dashboard");
   });
 
+  it("rejects every ASCII control character and DEL", () => {
+    const controlPoints = [...Array.from({ length: 0x20 }, (_, code) => code), 0x7f];
+
+    for (const code of controlPoints) {
+      const attack = `/${String.fromCodePoint(code)}/evil.com`;
+      expect(safeNextPath(attack), `U+${code.toString(16).padStart(4, "0")}`).toBe(
+        "/dashboard"
+      );
+    }
+  });
+
+  it("fails safely for unexpected runtime input types", () => {
+    for (const value of [42, true, {}, ["/safe"]]) {
+      expect(safeNextPath(value as never)).toBe("/dashboard");
+    }
+  });
+
   it("honours a custom fallback", () => {
     expect(safeNextPath("//evil.com", "/login")).toBe("/login");
   });

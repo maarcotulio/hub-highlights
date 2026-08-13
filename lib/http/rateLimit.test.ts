@@ -69,4 +69,35 @@ describe("rateLimit", () => {
     vi.advanceTimersByTime(1_000);
     expect(rateLimit(key, 2, 60).ok).toBe(true);
   });
+
+  it("evicts the oldest active budget when the key capacity is reached", async () => {
+    vi.resetModules();
+    const { rateLimit: freshRateLimit } = await import("./rateLimit");
+    const oldestKey = "capacity:oldest";
+
+    freshRateLimit(oldestKey, 1, 60);
+    for (let index = 1; index < 10_000; index += 1) {
+      freshRateLimit(`capacity:${index}`, 1, 60);
+    }
+    freshRateLimit("capacity:overflow", 1, 60);
+
+    expect(freshRateLimit(oldestKey, 1, 60).ok).toBe(true);
+  });
+
+  it("sweeps expired budgets before evicting an active budget at capacity", async () => {
+    vi.resetModules();
+    const { rateLimit: freshRateLimit } = await import("./rateLimit");
+    const activeKey = "capacity:active";
+
+    freshRateLimit(activeKey, 1, 3600);
+    freshRateLimit("capacity:expires", 1, 1);
+    for (let index = 2; index < 10_000; index += 1) {
+      freshRateLimit(`capacity:active:${index}`, 1, 3600);
+    }
+
+    vi.advanceTimersByTime(1_000);
+    freshRateLimit("capacity:replacement", 1, 3600);
+
+    expect(freshRateLimit(activeKey, 1, 3600).ok).toBe(false);
+  });
 });

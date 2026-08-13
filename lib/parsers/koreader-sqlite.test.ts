@@ -23,7 +23,7 @@ describe("parseKoreaderStatistics", () => {
     expect(mountain?.notes).toBe(2);
     expect(mountain?.totalReadTimeSec).toBe(5400);
     expect(mountain?.totalReadPages).toBe(180);
-    expect(mountain?.lastOpenAt).toBeInstanceOf(Date);
+    expect(mountain?.lastOpenAt?.toISOString()).toBe("2026-08-07T05:57:01.000Z");
   });
 
   it("handles a null series", async () => {
@@ -42,5 +42,6 @@ describe("parseKoreaderStatistics", () => {
     expect(first).toBeDefined();
     expect(first?.durationSec).toBe(47);
     expect(first?.totalPages).toBe(240);
+    expect(first?.startTime.toISOString()).toBe("2026-08-03T05:57:01.000Z");
   });
 });

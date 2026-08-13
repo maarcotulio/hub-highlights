@@ -23,12 +23,26 @@ describe("https deployments keep the strict headers", () => {
 
   it("sends HSTS", () => {
     withSupabaseUrl("https://abc.supabase.co");
-    expect(staticSecurityHeaders()).toHaveProperty("Strict-Transport-Security");
+    expect(staticSecurityHeaders()).toHaveProperty(
+      "Strict-Transport-Security",
+      "max-age=63072000; includeSubDomains; preload"
+    );
   });
 
   it("names the Supabase origin in img-src so covers load", () => {
     withSupabaseUrl("https://abc.supabase.co");
     expect(contentSecurityPolicy("n0nce")).toContain("img-src 'self' blob: data: https://abc.supabase.co");
+  });
+});
+
+describe("development-only script relaxation", () => {
+  it("allows eval only for the Next.js development compiler", () => {
+    withSupabaseUrl("https://abc.supabase.co");
+    vi.stubEnv("NODE_ENV", "development");
+    expect(contentSecurityPolicy("n0nce")).toContain("'unsafe-eval'");
+
+    vi.stubEnv("NODE_ENV", "production");
+    expect(contentSecurityPolicy("n0nce")).not.toContain("'unsafe-eval'");
   });
 });
 
@@ -55,11 +69,29 @@ describe("plain-http LAN deployments drop the headers that assume TLS", () => {
       "X-Frame-Options": "DENY",
       "X-Content-Type-Options": "nosniff",
       "Referrer-Policy": "strict-origin-when-cross-origin",
+      "Permissions-Policy": "camera=(), microphone=(), geolocation=(), interest-cohort=()",
     });
     const csp = contentSecurityPolicy("n0nce");
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("object-src 'none'");
     expect(csp).toContain("connect-src 'self'");
+  });
+
+  it("keeps a complete CSP while omitting only the HTTPS upgrade", () => {
+    withSupabaseUrl(LAN);
+
+    expect(contentSecurityPolicy("n0nce").split("; ")).toEqual([
+      "default-src 'self'",
+      "script-src 'self' 'nonce-n0nce' 'strict-dynamic'",
+      "style-src 'self' 'unsafe-inline'",
+      `img-src 'self' blob: data: ${LAN}`,
+      "font-src 'self' data:",
+      "connect-src 'self'",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "object-src 'none'",
+    ]);
   });
 });
 
@@ -70,9 +102,30 @@ describe("unparseable or missing config stays strict", () => {
     ["missing", undefined],
     ["empty", ""],
     ["not a URL", "not-a-url"],
+    ["scheme missing", "hub.example.com"],
+    ["unsupported FTP scheme", "ftp://hub.example.com"],
+    ["unsupported WebSocket scheme", "ws://hub.example.com"],
   ])("%s keeps upgrade-insecure-requests and HSTS", (_label, value) => {
     withSupabaseUrl(value);
     expect(contentSecurityPolicy("n0nce")).toContain("upgrade-insecure-requests");
     expect(staticSecurityHeaders()).toHaveProperty("Strict-Transport-Security");
+  });
+
+  it("keeps every baseline CSP directive without inventing an image origin", () => {
+    withSupabaseUrl("not-a-url");
+
+    expect(contentSecurityPolicy("n0nce").split("; ")).toEqual([
+      "default-src 'self'",
+      "script-src 'self' 'nonce-n0nce' 'strict-dynamic'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' blob: data:",
+      "font-src 'self' data:",
+      "connect-src 'self'",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "object-src 'none'",
+      "upgrade-insecure-requests",
+    ]);
   });
 });

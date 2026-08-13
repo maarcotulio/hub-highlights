@@ -1,5 +1,5 @@
 import { parse } from "luaparse";
-import type { Expression, ReturnStatement, TableConstructorExpression } from "luaparse";
+import type { Expression, TableConstructorExpression } from "luaparse";
 import { computeDedupeHash, type RawHighlight } from "./normalize";
 
 // --- safe Lua table evaluation ---------------------------------------------
@@ -118,10 +118,12 @@ function evalTable(node: TableConstructorExpression): Record<string, unknown> {
 
 function parseLuaTable(source: string): Record<string, unknown> {
   const chunk = parse(source);
-  const returnStatement = chunk.body.find(
-    (statement): statement is ReturnStatement => statement.type === "ReturnStatement"
-  );
-  if (!returnStatement || returnStatement.arguments.length !== 1) {
+  const [returnStatement] = chunk.body;
+  if (
+    chunk.body.length !== 1 ||
+    returnStatement?.type !== "ReturnStatement" ||
+    returnStatement.arguments.length !== 1
+  ) {
     throw new Error(
       "Unsupported metadata.lua format: expected a single `return { ... }` statement"
     );

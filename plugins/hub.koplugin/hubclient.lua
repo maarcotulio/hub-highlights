@@ -35,22 +35,32 @@ end
 local function isPrivateHost(host)
     if host == "localhost" or host == "[::1]" then return true end
 
-    if host:match("^127%.%d+%.%d+%.%d+$") then return true end   -- loopback
-    if host:match("^10%.%d+%.%d+%.%d+$") then return true end    -- 10/8
-    if host:match("^192%.168%.%d+%.%d+$") then return true end   -- 192.168/16
-    if host:match("^169%.254%.%d+%.%d+$") then return true end   -- link-local
+    local a, b, c, d = host:match("^(%d+)%.(%d+)%.(%d+)%.(%d+)$")
+    if a then
+        -- Reject ambiguous legacy forms such as 010.0.0.1. Some resolvers
+        -- interpret a leading zero as octal, which would turn decimal 10 into
+        -- public address 8 after this validator had classified it as private.
+        if (#a > 1 and a:sub(1, 1) == "0")
+            or (#b > 1 and b:sub(1, 1) == "0")
+            or (#c > 1 and c:sub(1, 1) == "0")
+            or (#d > 1 and d:sub(1, 1) == "0") then
+            return false
+        end
+        a, b, c, d = tonumber(a), tonumber(b), tonumber(c), tonumber(d)
+        if a > 255 or b > 255 or c > 255 or d > 255 then return false end
 
-    -- 172.16/12 is 172.16 through 172.31, not the whole 172.x space — a looser
-    -- "^172%.%d+%." would hand the token to public addresses like 172.200.0.1.
-    local second_octet = host:match("^172%.(%d+)%.%d+%.%d+$")
-    if second_octet then
-        local n = tonumber(second_octet)
-        return n ~= nil and n >= 16 and n <= 31
+        if a == 127 or a == 10 then return true end
+        if a == 192 and b == 168 then return true end
+        if a == 169 and b == 254 then return true end
+
+        -- 172.16/12 is 172.16 through 172.31, not the whole 172.x space — a
+        -- looser 172.* check would hand the token to public addresses.
+        return a == 172 and b >= 16 and b <= 31
     end
 
     -- .local is reserved for mDNS (RFC 6762), so it resolves on the local link
     -- only and can't be registered by anyone.
-    return host:match("%.local$") ~= nil
+    return host:match("^.+%.local$") ~= nil
 end
 
 -- Extracts the bare host from a URL, dropping port and path.
@@ -62,6 +72,10 @@ local function hostOf(server_url)
     -- here, and "http://192.168.1.1@evil.com" reads as private at a glance
     -- while actually resolving to evil.com.
     if authority:find("@", 1, true) then return nil end
+    for i = 1, #authority do
+        local byte = authority:byte(i)
+        if byte <= 32 or byte == 127 then return nil end
+    end
 
     -- A bracketed IPv6 literal keeps its colons; everything else splits on the
     -- first colon to drop the port.
@@ -79,11 +93,11 @@ end
 -- last place before the token goes on the wire.
 function HubClient.isValidServerUrl(server_url)
     if type(server_url) ~= "string" then return false end
-    if server_url:match("^https://[^/]") then return true end
-    if not server_url:match("^http://") then return false end
-
     local host = hostOf(server_url)
-    return host ~= nil and isPrivateHost(host)
+    if not host or host == "" then return false end
+    if server_url:match("^https://") then return true end
+    if not server_url:match("^http://") then return false end
+    return isPrivateHost(host)
 end
 
 function HubClient:request(method, path, body)
