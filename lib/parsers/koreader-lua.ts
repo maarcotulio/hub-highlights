@@ -59,6 +59,9 @@ function unescapeLuaString(raw: string): string {
         break;
       case "x": {
         const hex = inner.slice(i + 1, i + 3);
+        if (!/^[0-9a-fA-F]{2}$/.test(hex)) {
+          throw new Error("Invalid Lua hexadecimal escape: expected exactly two digits");
+        }
         result += String.fromCharCode(parseInt(hex, 16));
         i += 2;
         break;
@@ -69,9 +72,10 @@ function unescapeLuaString(raw: string): string {
           while (digits.length < 3 && /[0-9]/.test(inner[i + 1] ?? "")) {
             digits += inner[++i];
           }
+          // luaparse rejects values above 255 before exposing this raw string.
           result += String.fromCharCode(parseInt(digits, 10));
         } else {
-          result += next ?? "";
+          throw new Error(`Unsupported Lua string escape: \\${next}`);
         }
     }
   }

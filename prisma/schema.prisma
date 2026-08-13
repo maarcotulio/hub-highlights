@@ -36,6 +36,8 @@ model Book {
   title      String
   author     String?
   source     Source
+  // Enforced by a partial unique index in the database migration: a non-null
+  // KOReader hash is unique per user. Prisma cannot represent that predicate.
   md5        String?
   coverUrl   String?
   status     BookStatus  @default(NOT_STARTED)

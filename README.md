@@ -117,9 +117,18 @@ npx prisma migrate dev   # apply migrations in dev
 npx prisma studio        # inspect the database visually
 npx prisma generate      # regenerate the client after changing the schema
 npm run test              # unit tests
+npm run test:integration:db # destructive, isolated local Supabase DB tests (requires Docker)
+npm run test:mutation:lua # curated Lua mutations, using the existing Fengari test runtime
 npm run build             # production build
 npm run lint               # lint
 ```
+
+The database integration command starts its own `hub-integration` Supabase Postgres
+on port `55322`, deploys the Prisma migrations, runs the persisted-invariant suite,
+and removes that test database afterward. It is manual and local only: it does not
+connect to a hosted Supabase project and is not part of the regular test command or CI.
+The Lua mutation command installs nothing; it writes mutants to the operating system's
+temporary directory and runs them through the Fengari dependency already in the repo.
 
 ## Support
 

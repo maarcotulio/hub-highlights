@@ -1,6 +1,7 @@
 import { readFileSync } from "fs";
 import { join } from "path";
-import { describe, expect, it } from "vitest";
+import initSqlJs from "sql.js";
+import { describe, expect, it, vi } from "vitest";
 import { parseKoreaderStatistics } from "./koreader-sqlite";
 
 const fixture = new Uint8Array(
@@ -8,6 +9,33 @@ const fixture = new Uint8Array(
 );
 
 describe("parseKoreaderStatistics", () => {
+  it("closes the real SQLite database after a successful parse", async () => {
+    const SQL = await initSqlJs();
+    const close = vi.spyOn(SQL.Database.prototype, "close");
+
+    try {
+      await parseKoreaderStatistics(fixture);
+      expect(close).toHaveBeenCalledOnce();
+    } finally {
+      close.mockRestore();
+    }
+  });
+
+  it("closes the real SQLite database when a query fails", async () => {
+    const SQL = await initSqlJs();
+    const emptyDatabase = new SQL.Database();
+    const bytes = emptyDatabase.export();
+    emptyDatabase.close();
+    const close = vi.spyOn(SQL.Database.prototype, "close");
+
+    try {
+      await expect(parseKoreaderStatistics(bytes)).rejects.toThrow(/no such table: book/i);
+      expect(close).toHaveBeenCalledOnce();
+    } finally {
+      close.mockRestore();
+    }
+  });
+
   it("parses all books with correct field mapping", async () => {
     const { books } = await parseKoreaderStatistics(fixture);
     expect(books).toHaveLength(3);

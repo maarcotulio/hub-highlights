@@ -256,6 +256,54 @@ describe("parseKoreaderMetadata", () => {
     );
   });
 
+  it.each(["z", "!"])(
+    "rejects the unsupported \\%s string escape instead of changing imported text",
+    (escape) => {
+      const lua = `return {
+        annotations = {
+          { color = "yellow", text = "unsupported:\\${escape}" },
+        },
+      }`;
+
+      expect(() => parseKoreaderMetadata(lua)).toThrow(/unsupported lua string escape/i);
+    }
+  );
+
+  it("rejects malformed hexadecimal and out-of-range decimal escapes", () => {
+    const malformedHex = String.raw`return {
+      annotations = {
+        { color = "yellow", text = "malformed:\x4" },
+      },
+    }`;
+    const maximumDecimal = String.raw`return {
+      annotations = {
+        { color = "yellow", text = "maximum:\255" },
+      },
+    }`;
+    const outOfRangeDecimal = String.raw`return {
+      annotations = {
+        { color = "yellow", text = "too large:\256" },
+      },
+    }`;
+
+    expect(() => parseKoreaderMetadata(malformedHex)).toThrow(/hexadecimal escape/i);
+    expect(parseKoreaderMetadata(maximumDecimal)[0].text).toBe("maximum:ÿ");
+    expect(() => parseKoreaderMetadata(outOfRangeDecimal)).toThrow(
+      /decimal escape.*(?:large|255)/i
+    );
+  });
+
+  it("supports quote escapes and escaped physical line breaks", () => {
+    const lua = String.raw`return {
+      annotations = {
+        { color = 'yellow', text = 'it\'s on the first\
+and second line' },
+      },
+    }`;
+
+    expect(parseKoreaderMetadata(lua)[0].text).toBe("it's on the first\nand second line");
+  });
+
   it("preserves the source order of implicit annotation array entries", () => {
     const lua = `return {
       annotations = {

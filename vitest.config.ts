@@ -8,7 +8,11 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    exclude: [...configDefaults.exclude, ".stryker-tmp/**"],
+    exclude: [
+      ...configDefaults.exclude,
+      ".stryker-tmp/**",
+      "tests/integration/**/*.integration.test.ts",
+    ],
     coverage: {
       provider: "v8",
       reporter: ["text", "json-summary", "html"],

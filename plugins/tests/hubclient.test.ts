@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { lua, lauxlib, lualib, to_jsstring, to_luastring, type LuaState } from "fengari";
 
 let state: LuaState;
@@ -31,7 +31,7 @@ beforeAll(() => {
   lualib.luaL_openlibs(state);
 
   const hubClientSource = readFileSync(
-    join(__dirname, "..", "hub.koplugin", "hubclient.lua"),
+    process.env.HUBCLIENT_LUA_PATH ?? join(__dirname, "..", "hub.koplugin", "hubclient.lua"),
     "utf8"
   );
   runLua(`
@@ -39,6 +39,18 @@ beforeAll(() => {
       return {
         request = function(request)
           captured_request = request
+          if http_behavior == "throw" then
+            error("simulated socket failure")
+          end
+          if http_behavior == "connection_failure" then
+            return nil, "timeout"
+          end
+          if http_behavior == "non_numeric_status" then
+            return 1, "invalid status", {}, nil
+          end
+          if http_behavior == "server_error" then
+            return 1, 503, {}, "HTTP/1.1 503 Service Unavailable"
+          end
           if request.sink then
             request.sink("response body")
             request.sink(nil)
@@ -94,6 +106,13 @@ beforeAll(() => {
     HubClient = (function()
       ${hubClientSource}
     end)()
+  `);
+});
+
+beforeEach(() => {
+  runLua(`
+    captured_request = nil
+    http_behavior = "success"
   `);
 });
 
@@ -168,6 +187,27 @@ describe("HubClient.isValidServerUrl", () => {
 });
 
 describe("HubClient.request", () => {
+  it("fails before networking when either required setting is missing", () => {
+    runLua(`
+      local missing_url = HubClient:new{ api_token = "secret-token" }
+      missing_url_ok, missing_url_error, missing_url_code = missing_url:heartbeat()
+      local missing_token = HubClient:new{ server_url = "https://hub.example.com" }
+      missing_token_ok, missing_token_error, missing_token_code = missing_token:heartbeat()
+    `);
+
+    expect(
+      luaBoolean(
+        "missing_url_ok == false and missing_url_error == 'not_configured' and missing_url_code == nil"
+      )
+    ).toBe(true);
+    expect(
+      luaBoolean(
+        "missing_token_ok == false and missing_token_error == 'not_configured' and missing_token_code == nil"
+      )
+    ).toBe(true);
+    expect(luaBoolean("captured_request == nil")).toBe(true);
+  });
+
   it("sends the bearer token while explicitly disabling redirects", () => {
     runLua(`
       captured_request = nil
@@ -197,5 +237,75 @@ describe("HubClient.request", () => {
 
     expect(luaBoolean("request_ok == false and request_error == 'insecure_url'")).toBe(true);
     expect(luaBoolean("captured_request == nil")).toBe(true);
+  });
+
+  it("turns a thrown socket error into a connection failure", () => {
+    runLua(`
+      http_behavior = "throw"
+      local client = HubClient:new{
+        server_url = "https://hub.example.com",
+        api_token = "secret-token",
+      }
+      request_ok, request_error, request_code = client:heartbeat()
+    `);
+
+    expect(
+      luaBoolean(
+        "request_ok == false and type(request_error) == 'string' and request_code == nil"
+      )
+    ).toBe(true);
+  });
+
+  it.each([
+    ["connection_failure", "timeout"],
+    ["non_numeric_status", "invalid status"],
+  ])("treats %s as a failure without an HTTP status", (behavior, error) => {
+    runLua(`
+      http_behavior = ${luaString(behavior)}
+      local client = HubClient:new{
+        server_url = "https://hub.example.com",
+        api_token = "secret-token",
+      }
+      request_ok, request_error, request_code = client:heartbeat()
+    `);
+
+    expect(
+      luaBoolean(
+        `request_ok == false and request_error == ${luaString(error)} and request_code == nil`
+      )
+    ).toBe(true);
+  });
+
+  it("returns the status line and code for a non-2xx response", () => {
+    runLua(`
+      http_behavior = "server_error"
+      local client = HubClient:new{
+        server_url = "https://hub.example.com",
+        api_token = "secret-token",
+      }
+      request_ok, request_error, request_code = client:heartbeat()
+    `);
+
+    expect(
+      luaBoolean(
+        "request_ok == false and request_error == 'HTTP/1.1 503 Service Unavailable' and request_code == 503"
+      )
+    ).toBe(true);
+  });
+
+  it("returns the response body and numeric code after a 2xx response", () => {
+    runLua(`
+      local client = HubClient:new{
+        server_url = "https://hub.example.com",
+        api_token = "secret-token",
+      }
+      request_ok, response_body, request_code = client:heartbeat()
+    `);
+
+    expect(
+      luaBoolean(
+        "request_ok == true and response_body == 'response body' and request_code == 204"
+      )
+    ).toBe(true);
   });
 });

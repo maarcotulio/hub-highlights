@@ -3,6 +3,7 @@ import { join } from "path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  transaction: vi.fn(),
   findBook: vi.fn(),
   createBook: vi.fn(),
   updateBook: vi.fn(),
@@ -14,6 +15,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/db", () => ({
   prisma: {
+    $transaction: mocks.transaction,
     book: {
       findFirst: mocks.findBook,
       create: mocks.createBook,
@@ -108,6 +110,73 @@ describe("ingestUpload", () => {
     }));
     mocks.deletePageStats.mockResolvedValue({ count: 0 });
     mocks.createPageStats.mockImplementation(async ({ data }) => ({ count: data.length }));
+    mocks.transaction.mockImplementation(async (operation) =>
+      operation({
+        book: {
+          findFirst: mocks.findBook,
+          create: mocks.createBook,
+          update: mocks.updateBook,
+        },
+        highlight: { createMany: mocks.createHighlights },
+        bookStats: { upsert: mocks.upsertBookStats },
+        pageStat: { deleteMany: mocks.deletePageStats, createMany: mocks.createPageStats },
+      })
+    );
+  });
+
+  it("persists an accepted upload in a serializable transaction", async () => {
+    await ingestUpload("user-1", "metadata.epub.lua", bytes(lua));
+
+    expect(mocks.transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: "Serializable",
+      maxWait: 5_000,
+      timeout: 30_000,
+    });
+  });
+
+  it("retries the complete transaction after a serialization conflict", async () => {
+    const serializationConflict = Object.assign(new Error("write conflict"), { code: "P2034" });
+    const runTransaction = mocks.transaction.getMockImplementation()!;
+    mocks.transaction
+      .mockRejectedValueOnce(serializationConflict)
+      .mockRejectedValueOnce(serializationConflict)
+      .mockImplementation(runTransaction);
+
+    await expect(
+      ingestUpload("user-1", "metadata.epub.lua", bytes(lua))
+    ).resolves.toMatchObject({ status: "success", imported: 1 });
+    expect(mocks.transaction).toHaveBeenCalledTimes(3);
+  });
+
+  it("retries the complete transaction after losing a concurrent book-create race", async () => {
+    const uniqueConflict = Object.assign(new Error("unique conflict"), { code: "P2002" });
+    const runTransaction = mocks.transaction.getMockImplementation()!;
+    mocks.transaction.mockRejectedValueOnce(uniqueConflict).mockImplementation(runTransaction);
+
+    await expect(
+      ingestUpload("user-1", "metadata.epub.lua", bytes(lua))
+    ).resolves.toMatchObject({ status: "success", imported: 1 });
+    expect(mocks.transaction).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops after five retryable transaction conflicts", async () => {
+    const serializationConflict = Object.assign(new Error("write conflict"), { code: "P2034" });
+    mocks.transaction.mockRejectedValue(serializationConflict);
+
+    await expect(
+      ingestUpload("user-1", "metadata.epub.lua", bytes(lua))
+    ).rejects.toBe(serializationConflict);
+    expect(mocks.transaction).toHaveBeenCalledTimes(5);
+  });
+
+  it("does not retry a non-transactional persistence error", async () => {
+    const persistenceFailure = new Error("database unavailable");
+    mocks.transaction.mockRejectedValue(persistenceFailure);
+
+    await expect(
+      ingestUpload("user-1", "metadata.epub.lua", bytes(lua))
+    ).rejects.toBe(persistenceFailure);
+    expect(mocks.transaction).toHaveBeenCalledOnce();
   });
 
   it("does not create a duplicate when the same file is imported again", async () => {

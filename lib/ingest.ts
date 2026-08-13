@@ -1,8 +1,37 @@
 import { prisma } from "@/lib/db";
+import { Prisma } from "@/app/generated/prisma/client";
 import { parseKoreaderMetadata } from "@/lib/parsers/koreader-lua";
 import { parseKoreaderStatistics } from "@/lib/parsers/koreader-sqlite";
 import type { RawHighlight } from "@/lib/parsers/normalize";
 import type { UploadResult } from "@/lib/upload";
+
+const TRANSACTION_OPTIONS = {
+  isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+  maxWait: 5_000,
+  timeout: 30_000,
+} as const;
+const MAX_TRANSACTION_ATTEMPTS = 5;
+const RETRYABLE_TRANSACTION_CODES = new Set(["P2002", "P2034"]);
+
+function prismaErrorCode(error: unknown): string | null {
+  if (!error || typeof error !== "object" || !("code" in error)) return null;
+  return typeof error.code === "string" ? error.code : null;
+}
+
+async function runSerializableTransaction<T>(
+  operation: (db: Prisma.TransactionClient) => Promise<T>
+): Promise<T> {
+  for (let attempt = 1; attempt <= MAX_TRANSACTION_ATTEMPTS; attempt += 1) {
+    try {
+      return await prisma.$transaction(operation, TRANSACTION_OPTIONS);
+    } catch (error) {
+      const retryable = RETRYABLE_TRANSACTION_CODES.has(prismaErrorCode(error) ?? "");
+      if (!retryable || attempt === MAX_TRANSACTION_ATTEMPTS) throw error;
+    }
+  }
+
+  throw new Error("Transaction retry loop exhausted unexpectedly");
+}
 
 function groupByBook(highlights: RawHighlight[]) {
   const groups = new Map<
@@ -28,27 +57,28 @@ function groupByBook(highlights: RawHighlight[]) {
 // find-then-create instead of an upsert because that compound key can't be
 // used for the lookup when `author` is null (NULL never equals NULL in SQL).
 async function findOrCreateBook(
+  db: Prisma.TransactionClient,
   userId: string,
   title: string,
   author: string | null,
   md5: string | null
 ) {
   if (md5) {
-    const byMd5 = await prisma.book.findFirst({ where: { userId, md5 } });
+    const byMd5 = await db.book.findFirst({ where: { userId, md5 } });
     if (byMd5) return byMd5;
   }
 
-  const byTitle = await prisma.book.findFirst({
+  const byTitle = await db.book.findFirst({
     where: { userId, title, author, source: "KOREADER" },
   });
   if (byTitle) {
     if (md5 && !byTitle.md5) {
-      return prisma.book.update({ where: { id: byTitle.id }, data: { md5 } });
+      return db.book.update({ where: { id: byTitle.id }, data: { md5 } });
     }
     return byTitle;
   }
 
-  return prisma.book.create({
+  return db.book.create({
     data: { userId, title, author, source: "KOREADER", md5 },
   });
 }
@@ -65,30 +95,44 @@ async function ingestHighlights(
     return { status: "error", reason: "corrupt", fileName };
   }
 
-  let totalImported = 0;
-  let totalSkipped = 0;
+  return runSerializableTransaction(async (db) => {
+    let totalImported = 0;
+    let totalSkipped = 0;
 
-  for (const group of groupByBook(highlights)) {
-    const book = await findOrCreateBook(userId, group.bookTitle, group.author, group.md5);
+    for (const group of groupByBook(highlights)) {
+      const book = await findOrCreateBook(
+        db,
+        userId,
+        group.bookTitle,
+        group.author,
+        group.md5
+      );
 
-    const { count } = await prisma.highlight.createMany({
-      data: group.highlights.map((h) => ({
-        bookId: book.id,
-        text: h.text,
-        note: h.note,
-        location: h.location,
-        chapter: h.chapter,
-        highlightedAt: h.highlightedAt,
-        dedupeHash: h.dedupeHash,
-      })),
-      skipDuplicates: true,
-    });
+      const { count } = await db.highlight.createMany({
+        data: group.highlights.map((h) => ({
+          bookId: book.id,
+          text: h.text,
+          note: h.note,
+          location: h.location,
+          chapter: h.chapter,
+          highlightedAt: h.highlightedAt,
+          dedupeHash: h.dedupeHash,
+        })),
+        skipDuplicates: true,
+      });
 
-    totalImported += count;
-    totalSkipped += group.highlights.length - count;
-  }
+      totalImported += count;
+      totalSkipped += group.highlights.length - count;
+    }
 
-  return { status: "success", kind: "highlights", imported: totalImported, skipped: totalSkipped, fileName };
+    return {
+      status: "success",
+      kind: "highlights",
+      imported: totalImported,
+      skipped: totalSkipped,
+      fileName,
+    };
+  });
 }
 
 async function ingestStatistics(
@@ -103,55 +147,63 @@ async function ingestStatistics(
     return { status: "error", reason: "corrupt", fileName };
   }
 
-  let booksUpdated = 0;
+  return runSerializableTransaction(async (db) => {
+    let booksUpdated = 0;
 
-  for (const stats of parsed.books) {
-    // Without an md5 there's nothing reliable to match this stats row to a
-    // book by, and no stable key to dedupe re-uploads against — skip it.
-    if (!stats.md5) continue;
+    for (const stats of parsed.books) {
+      // Without an md5 there's nothing reliable to match this stats row to a
+      // book by, and no stable key to dedupe re-uploads against — skip it.
+      if (!stats.md5) continue;
 
-    const book = await findOrCreateBook(userId, stats.title, stats.authors, stats.md5);
+      const book = await findOrCreateBook(
+        db,
+        userId,
+        stats.title,
+        stats.authors,
+        stats.md5
+      );
 
-    const bookStats = await prisma.bookStats.upsert({
-      where: { bookId: book.id },
-      update: {
-        md5: stats.md5,
-        totalPages: stats.pages,
-        totalReadTimeSec: stats.totalReadTimeSec,
-        totalReadPages: stats.totalReadPages,
-        lastOpenAt: stats.lastOpenAt,
-      },
-      create: {
-        bookId: book.id,
-        md5: stats.md5,
-        totalPages: stats.pages,
-        totalReadTimeSec: stats.totalReadTimeSec,
-        totalReadPages: stats.totalReadPages,
-        lastOpenAt: stats.lastOpenAt,
-      },
-    });
-
-    // KOReader's exported statistics.sqlite3 is always the full, cumulative
-    // state — replacing every session is simpler and safer than trying to
-    // dedupe individual reading sessions, which have no stable id upstream.
-    await prisma.pageStat.deleteMany({ where: { bookStatsId: bookStats.id } });
-    const pageStats = parsed.pageStats.filter((p) => p.bookMd5 === stats.md5);
-    if (pageStats.length > 0) {
-      await prisma.pageStat.createMany({
-        data: pageStats.map((p) => ({
-          bookStatsId: bookStats.id,
-          page: p.page,
-          startTime: p.startTime,
-          durationSec: p.durationSec,
-          totalPages: p.totalPages,
-        })),
+      const bookStats = await db.bookStats.upsert({
+        where: { bookId: book.id },
+        update: {
+          md5: stats.md5,
+          totalPages: stats.pages,
+          totalReadTimeSec: stats.totalReadTimeSec,
+          totalReadPages: stats.totalReadPages,
+          lastOpenAt: stats.lastOpenAt,
+        },
+        create: {
+          bookId: book.id,
+          md5: stats.md5,
+          totalPages: stats.pages,
+          totalReadTimeSec: stats.totalReadTimeSec,
+          totalReadPages: stats.totalReadPages,
+          lastOpenAt: stats.lastOpenAt,
+        },
       });
+
+      // KOReader's exported statistics.sqlite3 is always the full, cumulative
+      // state — replacing every session is simpler and safer than trying to
+      // dedupe individual reading sessions, which have no stable id upstream.
+      await db.pageStat.deleteMany({ where: { bookStatsId: bookStats.id } });
+      const pageStats = parsed.pageStats.filter((p) => p.bookMd5 === stats.md5);
+      if (pageStats.length > 0) {
+        await db.pageStat.createMany({
+          data: pageStats.map((p) => ({
+            bookStatsId: bookStats.id,
+            page: p.page,
+            startTime: p.startTime,
+            durationSec: p.durationSec,
+            totalPages: p.totalPages,
+          })),
+        });
+      }
+
+      booksUpdated += 1;
     }
 
-    booksUpdated += 1;
-  }
-
-  return { status: "success", kind: "stats", booksUpdated, fileName };
+    return { status: "success", kind: "stats", booksUpdated, fileName };
+  });
 }
 
 export async function ingestUpload(
