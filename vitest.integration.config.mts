@@ -8,5 +8,8 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    include: ["tests/integration/**/*.integration.test.ts"],
+    fileParallelism: false,
+    maxWorkers: 1,
   },
 });

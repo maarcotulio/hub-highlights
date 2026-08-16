@@ -12,6 +12,12 @@
 
 # testing
 /coverage
+/reports
+/.stryker-tmp
+
+# Agents
+.agents
+skills-lock.json
 
 # next.js
 /.next/
@@ -53,6 +59,9 @@ next-env.d.ts
 
 data/*.*
 **/__fixtures__/*.*
+!lib/parsers/__fixtures__/koreader-annotations.lua
+!lib/parsers/__fixtures__/koreader-metadata.lua
+!lib/parsers/__fixtures__/koreader-statistics.sqlite3
 
 # build artifacts (hub.koplugin.zip is attached to releases, not committed)
 /dist

@@ -1,5 +1,5 @@
 import { parse } from "luaparse";
-import type { Expression, ReturnStatement, TableConstructorExpression } from "luaparse";
+import type { Expression, TableConstructorExpression } from "luaparse";
 import { computeDedupeHash, type RawHighlight } from "./normalize";
 
 // --- safe Lua table evaluation ---------------------------------------------
@@ -59,6 +59,9 @@ function unescapeLuaString(raw: string): string {
         break;
       case "x": {
         const hex = inner.slice(i + 1, i + 3);
+        if (!/^[0-9a-fA-F]{2}$/.test(hex)) {
+          throw new Error("Invalid Lua hexadecimal escape: expected exactly two digits");
+        }
         result += String.fromCharCode(parseInt(hex, 16));
         i += 2;
         break;
@@ -69,9 +72,10 @@ function unescapeLuaString(raw: string): string {
           while (digits.length < 3 && /[0-9]/.test(inner[i + 1] ?? "")) {
             digits += inner[++i];
           }
+          // luaparse rejects values above 255 before exposing this raw string.
           result += String.fromCharCode(parseInt(digits, 10));
         } else {
-          result += next ?? "";
+          throw new Error(`Unsupported Lua string escape: \\${next}`);
         }
     }
   }
@@ -118,10 +122,12 @@ function evalTable(node: TableConstructorExpression): Record<string, unknown> {
 
 function parseLuaTable(source: string): Record<string, unknown> {
   const chunk = parse(source);
-  const returnStatement = chunk.body.find(
-    (statement): statement is ReturnStatement => statement.type === "ReturnStatement"
-  );
-  if (!returnStatement || returnStatement.arguments.length !== 1) {
+  const [returnStatement] = chunk.body;
+  if (
+    chunk.body.length !== 1 ||
+    returnStatement?.type !== "ReturnStatement" ||
+    returnStatement.arguments.length !== 1
+  ) {
     throw new Error(
       "Unsupported metadata.lua format: expected a single `return { ... }` statement"
     );

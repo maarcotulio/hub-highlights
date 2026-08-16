@@ -37,7 +37,16 @@ export function rateLimit(key: string, limit: number, windowSec: number): RateLi
   const existing = windows.get(key);
 
   if (!existing || existing.resetAt <= now) {
-    if (windows.size >= MAX_TRACKED_KEYS) sweep(now);
+    if (windows.size >= MAX_TRACKED_KEYS) {
+      sweep(now);
+      // A flood of still-active keys cannot be swept by time. Evict the
+      // oldest budget before inserting another so the documented memory bound
+      // remains real even under that adversarial shape.
+      if (windows.size >= MAX_TRACKED_KEYS) {
+        const oldestKey = windows.keys().next().value;
+        if (oldestKey !== undefined) windows.delete(oldestKey);
+      }
+    }
     windows.set(key, { count: 1, resetAt: now + windowSec * 1000 });
     return { ok: true, retryAfterSec: 0 };
   }

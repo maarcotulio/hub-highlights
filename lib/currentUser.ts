@@ -29,17 +29,15 @@ export const resolveDbUser = cache(async (authUser: AuthUser) => {
   const authId = authUser.id;
   const email = authUser.email ?? "";
 
-  const byAuthId = await prisma.user.findUnique({ where: { authId } });
-  if (byAuthId) {
-    // Keep the denormalized email in step with Auth, which is the source of
-    // truth for it. Identity is unaffected either way.
-    if (email && byAuthId.email !== email) {
-      return prisma.user.update({ where: { id: byAuthId.id }, data: { email } });
-    }
-    return byAuthId;
-  }
-
-  return prisma.user.create({ data: { authId, email } });
+  // One statement owns both lookup and creation. The unique authId constraint
+  // therefore remains the arbiter when two first requests arrive together.
+  // Email is only a mutable copy of Auth data and never participates in the
+  // ownership lookup.
+  return prisma.user.upsert({
+    where: { authId },
+    update: email ? { email } : {},
+    create: { authId, email },
+  });
 });
 
 /**

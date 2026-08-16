@@ -28,7 +28,11 @@ function formatDate(date: Date | null): string | null {
 }
 
 function yamlString(value: string): string {
-  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  // JSON string literals are also valid YAML double-quoted scalars. Using the
+  // platform encoder covers line breaks and other control characters as well
+  // as quotes/backslashes, so book metadata cannot create new frontmatter
+  // fields by containing a literal newline.
+  return JSON.stringify(value);
 }
 
 function frontmatter(book: ExportBook): string {

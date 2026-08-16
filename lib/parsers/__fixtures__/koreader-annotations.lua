@@ -1,0 +1,55 @@
+-- /mnt/us/koreader/Books/[sample book].sdr/[sample book].epub.annotations.lua
+return {
+    ["annotations"] = {
+        [1] = {
+            ["chapter"] = "Chapter Two",
+            ["datetime"] = "2025-12-23 04:12:04",
+            ["page"] = "/body/DocFragment[22]/body/div/div/p[11]/span/text().222",
+            ["pageno"] = 246,
+            ["text"] = "Bookmark in chapter two",
+        },
+        [2] = {
+            ["chapter"] = "Chapter One",
+            ["color"] = "gray",
+            ["datetime"] = "2026-01-02 03:09:11",
+            ["drawer"] = "lighten",
+            ["page"] = "/body/DocFragment[25]/body/div/div/p[128]/span/text().160",
+            ["pageno"] = 317,
+            ["pos0"] = "/body/DocFragment[25]/body/div/div/p[128]/span/text().160",
+            ["pos1"] = "/body/DocFragment[25]/body/div/div/p[128]/span/text().265",
+            ["text"] = "A highlighted sentence with Unicode: café, 日本語, 🚀.",
+        },
+        [3] = {
+            ["chapter"] = "Later Chapter",
+            ["datetime"] = "2026-07-28 05:17:56",
+            ["page"] = "/body/DocFragment[48]/body/div/div/p[67]/span/text().163",
+            ["pageno"] = 715,
+            ["text"] = "Bookmark in a later chapter",
+        },
+        [4] = {
+            ["chapter"] = "Later Chapter",
+            ["datetime"] = "2026-08-05 00:09:20",
+            ["page"] = "/body/DocFragment[58]/body/div/div/p[120]/span[3]/text().211",
+            ["pageno"] = 889,
+            ["text"] = "Another bookmark in a later chapter",
+        },
+        [5] = {
+            ["chapter"] = "Later Chapter",
+            ["color"] = "gray",
+            ["datetime"] = "2026-08-06 14:24:35",
+            ["drawer"] = "lighten",
+            ["page"] = "/body/DocFragment[62]/body/div/div/p[97]/span[2]/text().0",
+            ["pageno"] = 950,
+            ["pos0"] = "/body/DocFragment[62]/body/div/div/p[97]/span[2]/text().0",
+            ["pos1"] = "/body/DocFragment[62]/body/div/div/p[97]/span[2]/text().236",
+            ["text"] = "A second highlighted sentence",
+        },
+        [6] = {
+            ["chapter"] = "Final Chapter",
+            ["datetime"] = "2026-08-07 16:28:20",
+            ["page"] = "/body/DocFragment[66]/body/div/div/p[142]/span/text().962",
+            ["pageno"] = 1025,
+            ["text"] = "Bookmark in the final chapter",
+        },
+    },
+}
