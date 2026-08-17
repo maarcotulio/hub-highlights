@@ -93,13 +93,13 @@ export function ApiTokenPanel({
 
       {error && <span className="text-sm text-danger">{error}</span>}
 
-      <div className="flex gap-3">
+      <div className="flex justify-end gap-3">
         {token && (
           <Button variant="secondary" onClick={handleCopy}>
             {copied ? "Copied" : "Copy token"}
           </Button>
         )}
-        <Button variant="ghost" onClick={handleGenerate} disabled={generating}>
+        <Button variant="secondary" onClick={handleGenerate} disabled={generating}>
           {generating
             ? "Generating…"
             : tokenExists

@@ -82,6 +82,17 @@
 
 body {
   background: var(--bg);
+
+.no-number-spin {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.no-number-spin::-webkit-inner-spin-button,
+.no-number-spin::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
   color: var(--text);
 }
 

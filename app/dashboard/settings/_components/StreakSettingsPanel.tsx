@@ -62,10 +62,15 @@ export function StreakSettingsPanel({
         consecutive UTC calendar days you can skip between reading days.
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="max-consecutive-days-off" className="text-xs font-mono text-text-2">
-          DAYS OFF ALLOWED
-        </label>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="max-consecutive-days-off" className="text-xs font-mono text-text-2">
+            DAYS OFF ALLOWED
+          </label>
+          <span id="days-off-help" className="text-xs text-text-2">
+            0 means you need to read every day. Choose up to 30 days.
+          </span>
+        </div>
         <input
           id="max-consecutive-days-off"
           type="number"
@@ -80,20 +85,17 @@ export function StreakSettingsPanel({
             setError(null);
           }}
           aria-describedby="days-off-help"
-          className="max-w-32 font-mono text-sm px-3.5 py-2.5 rounded-lg border border-border bg-surface"
+          className="no-number-spin max-w-32 shrink-0 font-mono text-sm px-3.5 py-2.5 rounded-lg border border-border bg-surface"
         />
-        <span id="days-off-help" className="text-xs text-text-2">
-          0 means you need to read every day. Choose up to 30 days.
-        </span>
       </div>
 
       {error && <span className="text-sm text-danger">{error}</span>}
 
-      <div className="flex items-center gap-3">
-        <Button type="submit" variant="ghost" disabled={saving}>
+      <div className="flex items-center justify-end gap-3">
+        {saved && <span className="text-xs text-text-2">Saved.</span>}
+        <Button type="submit" variant="secondary" disabled={saving}>
           {saving ? "Saving…" : "Save streak setting"}
         </Button>
-        {saved && <span className="text-xs text-text-2">Saved.</span>}
       </div>
     </form>
   );

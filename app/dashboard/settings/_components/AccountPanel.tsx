@@ -17,16 +17,17 @@ export function AccountPanel({ email }: { email: string }) {
       </div>
 
       <div className="flex items-center gap-3">
+        <span className="text-xs text-text-2">
+          Signs you out everywhere, on every device.
+        </span>
         <Button
           variant="secondary"
+          className="ml-auto shrink-0"
           disabled={isPending}
           onClick={() => startTransition(() => signOut())}
         >
           {isPending ? "Signing out…" : "Sign out"}
         </Button>
-        <span className="text-xs text-text-2">
-          Signs you out everywhere, on every device.
-        </span>
       </div>
     </div>
   );
