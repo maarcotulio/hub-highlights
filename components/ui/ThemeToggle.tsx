@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
+import { Moon, Sun } from "lucide-react";
 
 const TOGGLE_COOLDOWN_MS = 400;
 
@@ -39,9 +40,19 @@ export function ThemeToggle() {
     <button
       onClick={toggle}
       disabled={cooldown}
-      className="fixed top-5 right-5 z-50 font-mono text-[13px] px-4 py-2 rounded-lg border border-border bg-surface text-text cursor-pointer hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-70"
+      className="fixed top-5 right-5 z-50 inline-flex items-center gap-2 font-mono text-[13px] px-4 py-2 rounded-lg border border-border bg-surface text-text cursor-pointer hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-70"
     >
-      {isDark ? "☾ Dark" : "☀ Light"}
+      {isDark ? (
+        <>
+          <Moon aria-hidden="true" className="w-4 h-4" />
+          Dark
+        </>
+      ) : (
+        <>
+          <Sun aria-hidden="true" className="w-4 h-4" />
+          Light
+        </>
+      )}
     </button>
   );
 }

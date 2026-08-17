@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Archive, Settings } from "lucide-react";
 import { requireDbUser } from "@/lib/currentUser";
 import { prisma } from "@/lib/db";
 import { BookRow } from "@/components/ui/BookRow";
@@ -98,24 +99,15 @@ export default async function DashboardPage() {
             href="/dashboard/archive"
             className="inline-flex items-center gap-2 text-sm font-medium px-5 py-2.5 rounded-lg text-text-2 hover:text-text transition-opacity"
           >
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 20 20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              className="w-4 h-4"
-            >
-              <path d="M3.5 6.5h13l-1 10h-11l-1-10Z" strokeLinejoin="round" />
-              <path d="M2.5 3.5h15v3h-15zM7.5 10h5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <Archive aria-hidden="true" className="w-4 h-4" />
             Archived
           </Link>
           <Link
             href="/dashboard/settings"
-            className="text-sm font-medium px-5 py-2.5 rounded-lg text-text-2 hover:text-text transition-opacity"
+            className="inline-flex items-center gap-2 text-sm font-medium px-5 py-2.5 rounded-lg text-text-2 hover:text-text transition-opacity"
           >
-            ⚙ Settings
+            <Settings aria-hidden="true" className="w-4 h-4" />
+            Settings
           </Link>
           {totalBookCount > 0 && <ExportAllButton fileCount={totalBookCount} />}
         </div>

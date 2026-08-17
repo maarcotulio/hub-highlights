@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { Archive, Menu, Settings } from "lucide-react";
 import { ExportAllButton } from "./ExportAllButton";
 
 export function DashboardMobileMenu({ totalBookCount }: { totalBookCount: number }) {
@@ -26,16 +27,7 @@ export function DashboardMobileMenu({ totalBookCount }: { totalBookCount: number
         aria-expanded={open}
         className="flex items-center justify-center w-9 h-9 rounded-lg border border-border bg-surface text-text cursor-pointer hover:bg-surface-2"
       >
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 20 20"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          className="w-4 h-4"
-        >
-          <path d="M3 6h14M3 10h14M3 14h14" strokeLinecap="round" />
-        </svg>
+        <Menu aria-hidden="true" className="w-4 h-4" />
       </button>
       {open && (
         <div className="absolute top-full left-0 mt-2 flex flex-col gap-1 p-2 rounded-lg border border-border bg-surface shadow-md min-w-40">
@@ -43,24 +35,15 @@ export function DashboardMobileMenu({ totalBookCount }: { totalBookCount: number
             href="/dashboard/archive"
             className="inline-flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-lg text-text-2 hover:text-text hover:bg-surface-2 transition-opacity"
           >
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 20 20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              className="w-4 h-4"
-            >
-              <path d="M3.5 6.5h13l-1 10h-11l-1-10Z" strokeLinejoin="round" />
-              <path d="M2.5 3.5h15v3h-15zM7.5 10h5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <Archive aria-hidden="true" className="w-4 h-4" />
             Archived
           </Link>
           <Link
             href="/dashboard/settings"
-            className="text-sm font-medium px-3 py-2 rounded-lg text-text-2 hover:text-text hover:bg-surface-2 transition-opacity"
+            className="inline-flex items-center gap-2 text-sm font-medium px-3 py-2 rounded-lg text-text-2 hover:text-text hover:bg-surface-2 transition-opacity"
           >
-            ⚙ Settings
+            <Settings aria-hidden="true" className="w-4 h-4" />
+            Settings
           </Link>
           {totalBookCount > 0 && (
             <ExportAllButton fileCount={totalBookCount} className="w-full text-left" />

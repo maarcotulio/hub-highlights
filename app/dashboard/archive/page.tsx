@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { requireDbUser } from "@/lib/currentUser";
 import { prisma } from "@/lib/db";
 import { BookRow } from "@/components/ui/BookRow";
@@ -16,8 +17,9 @@ export default async function ArchivePage() {
     <div className="w-full max-w-4xl mx-auto px-6 py-12">
       <div className="flex justify-between items-end mb-7 gap-4 flex-wrap">
         <div>
-          <Link href="/dashboard" className="text-sm text-text-2 hover:text-text">
-            ← Your books
+          <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm text-text-2 hover:text-text">
+            <ArrowLeft aria-hidden="true" className="w-4 h-4" />
+            Your books
           </Link>
           <h1 className="text-[26px] font-semibold mt-4 mb-1">Archived books</h1>
           <div className="text-sm text-text-2">

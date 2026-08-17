@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { ArrowLeft, Quote } from "lucide-react";
 import { requireDbUser } from "@/lib/currentUser";
 import { prisma } from "@/lib/db";
 import { SourceBadge } from "@/components/ui/SourceBadge";
@@ -29,8 +30,9 @@ export default async function BookDetailPage({
 
   return (
     <div className="w-full max-w-4xl mx-auto px-6 pt-20 pb-12 sm:pt-12">
-      <BackLink href="/dashboard" className="text-sm text-text-2 inline-block mb-5">
-        ← All books
+      <BackLink href="/dashboard" className="inline-flex items-center gap-1.5 text-sm text-text-2 mb-5">
+        <ArrowLeft aria-hidden="true" className="w-4 h-4" />
+        All books
       </BackLink>
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 sm:gap-6 mb-2">
         <div className="flex items-start gap-4">
@@ -87,7 +89,7 @@ export default async function BookDetailPage({
 
       {book.highlights.length === 0 ? (
         <EmptyState
-          icon="❝"
+          icon={<Quote aria-hidden="true" className="w-7 h-7 text-text-2" />}
           title="No highlights yet"
           description="This book was imported but has no highlights attached. Re-import its file once you've added annotations on your device."
         />

@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect, type DragEvent } from "react";
 import { useRouter } from "next/navigation";
+import { ArrowDownToLine, CircleAlert, LoaderCircle, Upload } from "lucide-react";
 import type { UploadResult } from "@/lib/upload";
 import { Button } from "./Button";
 import { Toast } from "./Toast";
@@ -89,7 +90,11 @@ export function Dropzone({
       >
         <div className="flex items-center gap-3.5">
           <div className="hidden sm:flex w-9.5 h-9.5 rounded-lg bg-surface border border-border items-center justify-center text-base">
-            {state.phase === "drag-over" ? "↓" : "↑"}
+            {state.phase === "drag-over" ? (
+              <ArrowDownToLine aria-hidden="true" className="w-4 h-4" />
+            ) : (
+              <Upload aria-hidden="true" className="w-4 h-4" />
+            )}
           </div>
           <div>
             <div className="text-sm font-medium">
@@ -127,8 +132,8 @@ export function Dropzone({
     return (
       <div className="rounded-xl px-6 py-5.5 border-[1.5px] border-dashed border-border bg-surface-2 flex flex-col gap-3.5">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-surface border border-border flex items-center justify-center text-sm font-mono">
-            ↻
+          <div className="w-8 h-8 rounded-lg bg-surface border border-border flex items-center justify-center">
+            <LoaderCircle aria-hidden="true" className="w-4 h-4 animate-spin" />
           </div>
           <div>
             <div className="text-sm font-medium">
@@ -161,8 +166,8 @@ export function Dropzone({
   return (
     <div className="rounded-xl p-6 border-[1.5px] border-dashed border-danger bg-surface-2 flex flex-col gap-2.5">
       <div className="flex items-center gap-2.5">
-        <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm bg-danger/20 text-danger">
-          !
+        <div className="w-7 h-7 rounded-full flex items-center justify-center bg-danger/20 text-danger">
+          <CircleAlert aria-hidden="true" className="w-4 h-4" />
         </div>
         <div className="text-[15px] font-semibold text-danger">
           Couldn&apos;t read this file

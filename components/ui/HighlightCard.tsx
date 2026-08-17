@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { X } from "lucide-react";
 
 export type HighlightItem = {
   id: string;
@@ -84,10 +85,10 @@ export function HighlightCard({ highlight }: { highlight: HighlightItem }) {
             <button
               type="button"
               onClick={() => updateTags(tags.filter((t) => t !== tag))}
-              className="cursor-pointer hover:text-text"
+              className="inline-flex items-center cursor-pointer hover:text-text"
               aria-label={`Remove tag ${tag}`}
             >
-              ×
+              <X aria-hidden="true" className="w-3 h-3" />
             </button>
           </span>
         ))}

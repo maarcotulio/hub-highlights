@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Download, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Toast } from "@/components/ui/Toast";
 import { downloadFromUrl } from "@/lib/download";
@@ -38,9 +39,19 @@ export function ExportAllButton({
       onClick={handleClick}
       disabled={state === "exporting"}
       title="Export all books, including archived books"
-      className={className}
+      className={`inline-flex items-center gap-2 ${className}`}
     >
-      {state === "exporting" ? "↻ Building archive…" : "↓ Export all"}
+      {state === "exporting" ? (
+        <>
+          <LoaderCircle aria-hidden="true" className="w-4 h-4 animate-spin" />
+          Building archive…
+        </>
+      ) : (
+        <>
+          <Download aria-hidden="true" className="w-4 h-4" />
+          Export all
+        </>
+      )}
     </Button>
   );
 }

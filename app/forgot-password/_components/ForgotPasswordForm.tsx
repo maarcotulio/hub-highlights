@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
+import { Mail } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { TextField } from "@/components/ui/TextField";
 import { validateEmail } from "@/lib/auth/credentials";
@@ -20,8 +21,8 @@ export function ForgotPasswordForm() {
   if (state.sent && !error) {
     return (
       <div className="w-full max-w-sm flex flex-col items-center gap-5 text-center">
-        <div className="w-14 h-14 rounded-full bg-surface-2 border border-border flex items-center justify-center text-2xl">
-          ✉
+        <div className="w-14 h-14 rounded-full bg-surface-2 border border-border flex items-center justify-center">
+          <Mail aria-hidden="true" className="w-7 h-7 text-text-2" />
         </div>
         <div className="text-xl font-semibold">Check your email</div>
         <div className="text-[15px] text-text-2 leading-relaxed">

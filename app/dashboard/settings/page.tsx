@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { ArrowLeft } from "lucide-react";
 import { requireDbUser } from "@/lib/currentUser";
 import { BackLink } from "@/components/ui/BackLink";
 import { formatRelativeDate } from "@/lib/readingStats";
@@ -25,8 +26,9 @@ export default async function SettingsPage() {
 
   return (
     <div className="w-full max-w-4xl mx-auto px-6 py-12">
-      <BackLink href="/dashboard" className="text-sm text-text-2 inline-block mb-5">
-        ← All books
+      <BackLink href="/dashboard" className="inline-flex items-center gap-1.5 text-sm text-text-2 mb-5">
+        <ArrowLeft aria-hidden="true" className="w-4 h-4" />
+        All books
       </BackLink>
       <div className="text-[26px] font-semibold mb-8">Settings</div>
 
