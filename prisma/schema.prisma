@@ -25,6 +25,7 @@ model User {
   // never stored, so a database read can't be replayed against the webhooks.
   apiTokenHash String?   @unique
   lastSyncAt   DateTime?
+  maxConsecutiveDaysOff Int @default(0)
   books        Book[]
   createdAt    DateTime  @default(now())
 }

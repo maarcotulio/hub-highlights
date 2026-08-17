@@ -24,19 +24,6 @@ export function aggregateDailyMinutes(
   return daily;
 }
 
-export function computeStreak(dailyMinutes: Map<string, number>, today: Date = new Date()): number {
-  let streak = 0;
-  const cursor = new Date(today);
-  cursor.setUTCHours(0, 0, 0, 0);
-
-  while ((dailyMinutes.get(toDateKey(cursor)) ?? 0) > 0) {
-    streak += 1;
-    cursor.setUTCDate(cursor.getUTCDate() - 1);
-  }
-
-  return streak;
-}
-
 function levelFor(minutes: number, max: number): 0 | 1 | 2 | 3 {
   if (minutes <= 0 || max <= 0) return 0;
   const ratio = minutes / max;

@@ -60,6 +60,24 @@ afterAll(async () => {
 });
 
 describe("persisted ownership and identity constraints", () => {
+  it("defaults the days-off allowance to zero and rejects values outside its range", async () => {
+    const user = await createUser("streak-setting-owner");
+
+    expect(user.maxConsecutiveDaysOff).toBe(0);
+    await expect(
+      prisma.user.update({
+        where: { id: user.id },
+        data: { maxConsecutiveDaysOff: -1 },
+      })
+    ).rejects.toThrow();
+    await expect(
+      prisma.user.update({
+        where: { id: user.id },
+        data: { maxConsecutiveDaysOff: 31 },
+      })
+    ).rejects.toThrow();
+  });
+
   it("treats a null author as part of the per-user book identity", async () => {
     const firstOwner = await createUser("constraint-owner-1");
     const secondOwner = await createUser("constraint-owner-2");

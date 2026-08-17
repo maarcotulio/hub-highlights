@@ -7,10 +7,10 @@ import { Dropzone } from "@/components/ui/Dropzone";
 import { ExportAllButton } from "./_components/ExportAllButton";
 import { ReadingOverview } from "./_components/ReadingOverview";
 import { DashboardMobileMenu } from "./_components/DashboardMobileMenu";
+import { computeReadingStreak } from "@/lib/streak";
 import {
   aggregateDailyMinutes,
   buildHeatmapCells,
-  computeStreak,
   formatReadTime,
   formatRelativeDate,
   formatDate,
@@ -45,7 +45,9 @@ export default async function DashboardPage() {
           const pagesTotal = bookStats.reduce((sum, b) => sum + b.totalPages, 0);
 
           const dailyMinutes = aggregateDailyMinutes(bookStats.flatMap((b) => b.pageStats));
-          const streak = computeStreak(dailyMinutes);
+          const streak = computeReadingStreak(dailyMinutes, {
+            maxConsecutiveDaysOff: dbUser.maxConsecutiveDaysOff,
+          });
           const heatmapCells = buildHeatmapCells(dailyMinutes);
 
           const reading = bookStats

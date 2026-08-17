@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateDailyMinutes,
   buildHeatmapCells,
-  computeStreak,
   formatReadTime,
   formatRelativeDate,
 } from "./readingStats";
@@ -16,25 +15,6 @@ describe("aggregateDailyMinutes", () => {
     ]);
     expect(daily.get("2026-03-03")).toBe(15);
     expect(daily.get("2026-03-04")).toBe(2);
-  });
-});
-
-describe("computeStreak", () => {
-  it("counts consecutive days with minutes back from today", () => {
-    const today = new Date("2026-03-05T12:00:00Z");
-    const daily = new Map([
-      ["2026-03-05", 10],
-      ["2026-03-04", 20],
-      ["2026-03-03", 5],
-      ["2026-03-01", 30], // gap on the 2nd breaks the streak
-    ]);
-    expect(computeStreak(daily, today)).toBe(3);
-  });
-
-  it("returns 0 when today has no reading", () => {
-    const today = new Date("2026-03-05T12:00:00Z");
-    const daily = new Map([["2026-03-04", 20]]);
-    expect(computeStreak(daily, today)).toBe(0);
   });
 });
 

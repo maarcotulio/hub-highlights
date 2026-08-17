@@ -4,6 +4,7 @@ import { BackLink } from "@/components/ui/BackLink";
 import { formatRelativeDate } from "@/lib/readingStats";
 import { AccountPanel } from "./_components/AccountPanel";
 import { ApiTokenPanel } from "./_components/ApiTokenPanel";
+import { StreakSettingsPanel } from "./_components/StreakSettingsPanel";
 
 export default async function SettingsPage() {
   const dbUser = await requireDbUser();
@@ -32,6 +33,10 @@ export default async function SettingsPage() {
       <div className="text-base font-semibold mb-1">Account</div>
       <div className="text-sm text-text-2 mb-4">Who you&apos;re signed in as.</div>
       <AccountPanel email={dbUser.email} />
+
+      <div className="text-base font-semibold mt-10 mb-1">Reading streak</div>
+      <div className="text-sm text-text-2 mb-4">Plan a short break without ending your streak.</div>
+      <StreakSettingsPanel initialMaxConsecutiveDaysOff={dbUser.maxConsecutiveDaysOff} />
 
       <div className="text-base font-semibold mt-10 mb-1">API access</div>
       <div className="text-sm text-text-2 mb-4">For automated uploads.</div>

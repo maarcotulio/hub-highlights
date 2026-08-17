@@ -1,5 +1,6 @@
 import { ReadingHeatmap, type HeatmapCell } from "@/components/ui/ReadingHeatmap";
 import { ProgressBar } from "@/components/ui/ProgressBar";
+import type { ReadingStreakSummary } from "@/lib/streak";
 
 const LEGEND_SWATCHES = [
   "var(--surface-2)",
@@ -41,7 +42,7 @@ export function ReadingOverview({
 }: {
   totalTimeLabel: string;
   bookCount: number;
-  streak: number;
+  streak: ReadingStreakSummary;
   pagesRead: number;
   pagesTotal: number;
   heatmapCells: HeatmapCell[];
@@ -61,8 +62,14 @@ export function ReadingOverview({
         />
         <StatCard
           label="CURRENT STREAK"
-          value={`${streak} day${streak === 1 ? "" : "s"}`}
-          sublabel={streak > 0 ? "last read today" : "no active streak"}
+          value={`${streak.readingDays} day${streak.readingDays === 1 ? "" : "s"}`}
+          sublabel={
+            !streak.active
+              ? "no active streak"
+              : streak.daysOffUsed === 0
+                ? "last read today"
+                : `${streak.daysOffUsed} day${streak.daysOffUsed === 1 ? "" : "s"} off used · ${streak.daysOffRemaining} remaining`
+          }
         />
         <StatCard
           label="PAGES READ (ALL TIME)"
